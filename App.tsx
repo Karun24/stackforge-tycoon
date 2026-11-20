@@ -1,50 +1,100 @@
-import React, { useEffect, useState } from 'react';
-import { StyleSheet, Text, View } from 'react-native';
+import React from 'react';
+import {
+  StyleSheet,
+  Text,
+  TouchableOpacity,
+  View,
+} from 'react-native';
 import { StatusBar } from 'expo-status-bar';
 import { SafeAreaProvider, SafeAreaView } from 'react-native-safe-area-context';
 import { ArchitectureCanvas } from './src/components/ArchitectureCanvas';
 import { BottomDeck } from './src/components/BottomDeck';
+import { ClientRoadmap } from './src/components/ClientRoadmap';
+import { CrewCards } from './src/components/CrewCards';
+import { LabScreen } from './src/components/LabScreen';
 import { OnboardingModal } from './src/components/OnboardingModal';
+import { ShopScreen } from './src/components/ShopScreen';
 import { useGameEngine } from './src/engine/useGameEngine';
-import { DeckTab } from './src/types/game';
+import { NavigationTab } from './src/types/game';
 
 export default function App() {
   const game = useGameEngine();
-  const [activeTab, setActiveTab] = useState<DeckTab>('build');
 
-  useEffect(() => {
-    if (game.phase === 'live') {
-      setActiveTab('infra');
-    }
-  }, [game.phase]);
+  const formattedCash =
+    game.cash >= 1000000
+      ? `${(game.cash / 1000000).toFixed(2)}M`
+      : game.cash >= 1000
+      ? `${(game.cash / 1000).toFixed(1)}K`
+      : game.cash.toFixed(0);
+
+  // Bottom Navigation tabs (Matching Screenshots 1, 2, 3, 4, 5)
+  const navTabs: { id: NavigationTab; label: string; icon: string }[] = [
+    { id: 'shop', label: 'SHOP', icon: '🛍️' },
+    { id: 'clients', label: 'CLIENTS', icon: '📶' },
+    { id: 'rig', label: 'RIG', icon: '🔲' },
+    { id: 'lab', label: 'LAB', icon: '🧪' },
+    { id: 'cards', label: 'CARDS', icon: '🎴' },
+  ];
 
   return (
     <SafeAreaProvider>
       <SafeAreaView style={styles.safeArea}>
         <StatusBar style="light" />
+
         {game.phase === 'onboarding' ? (
           <OnboardingModal onStart={game.startGame} />
         ) : (
           <View style={styles.container}>
-            {/* Top HUD */}
-            <View style={styles.hud}>
-              <View>
-                <Text style={styles.hudLabel}>
-                  {game.mode.toUpperCase()} MODE • ★ {game.rating.toFixed(1)}
-                </Text>
-                <Text style={styles.cashText}>${game.cash.toLocaleString()}</Text>
+            {/* TOP STATUS BAR (Matching Screenshots 1-5) */}
+            <View style={styles.topBar}>
+              <View style={styles.topBarLeft}>
+                <View style={styles.levelBadge}>
+                  <Text style={styles.levelText}>👤 LV {game.playerLevel}</Text>
+                </View>
+                <View style={styles.modeBadge}>
+                  <Text style={styles.modeText}>
+                    ★ {game.rating.toFixed(1)}
+                  </Text>
+                </View>
               </View>
-              <View style={styles.hudRight}>
-                <Text style={styles.netText}>
-                  {game.netIncomePerSec >= 0 ? '+' : ''}${game.netIncomePerSec}/s
+
+              <View style={styles.topBarCenter}>
+                <Text style={styles.centerTitle}>
+                  {game.phase === 'build'
+                    ? 'DEV WORKSPACE'
+                    : `RIG-01 // ${game.product.name.toUpperCase()}`}
                 </Text>
-                <Text style={styles.burnText}>
-                  CLOUD BURN: -${game.burnPerSec}/s
+                <Text style={styles.centerNetIncome}>
+                  {game.netIncomePerSec >= 0 ? '+' : ''}${game.netIncomePerSec}/S
                 </Text>
+              </View>
+
+              <View style={styles.topBarRight}>
+                <View style={styles.cashPill}>
+                  <Text style={styles.cashPillText}>💵 ${formattedCash}</Text>
+                </View>
+                <View style={styles.gemPill}>
+                  <Text style={styles.gemPillText}>💎 {game.gems}</Text>
+                </View>
               </View>
             </View>
 
-            {/* Chaos Alert Banner */}
+            {/* BILLING & RATE RIBBON (Matching Screenshots 3, 4, 5) */}
+            {game.phase === 'live' && (
+              <View style={styles.billingRibbon}>
+                <Text style={styles.billingItem}>
+                  BILLING: <Text style={styles.billingHighlight}>${game.product.revenuePerReq}/REQ</Text>
+                </Text>
+                <Text style={styles.billingItem}>
+                  BURN: <Text style={styles.burnHighlight}>-${game.burnPerSec}/S</Text>
+                </Text>
+                <Text style={styles.billingItem}>
+                  USERS: <Text style={styles.usersHighlight}>{game.incomingReqPerSec} REQ/S</Text>
+                </Text>
+              </View>
+            )}
+
+            {/* CHAOS ALERT BANNER */}
             {game.activeChaos && (
               <View style={styles.chaosBanner}>
                 <Text style={styles.chaosTitle}>
@@ -54,41 +104,149 @@ export default function App() {
               </View>
             )}
 
-            {/* Animated Visual Canvas */}
-            <ArchitectureCanvas
-              phase={game.phase}
-              product={game.product}
-              buildProgress={game.buildProgress}
-              canPublish={game.canPublish}
-              installedBuildIds={game.installedBuildIds}
-              infraLevels={game.infraLevels}
-              incomingReqPerSec={game.incomingReqPerSec}
-              totalCapacity={game.totalCapacity}
-              droppedReqPerSec={game.droppedReqPerSec}
-              loadPercent={game.loadPercent}
-              packets={game.packets}
-              onPublish={game.publishProduct}
-            />
+            {/* MAIN CONTENT AREA */}
+            <View style={styles.mainContent}>
+              {game.phase === 'build' ? (
+                <View style={styles.buildLayout}>
+                  <ArchitectureCanvas
+                    phase={game.phase}
+                    mode={game.mode}
+                    product={game.product}
+                    buildProgress={game.buildProgress}
+                    canPublish={game.canPublish}
+                    installedBuildIds={game.installedBuildIds}
+                    terminalLogs={game.terminalLogs}
+                    infraLevels={game.infraLevels}
+                    temperature={game.temperature}
+                    isThermalThrottling={game.isThermalThrottling}
+                    powerKw={game.powerKw}
+                    incomingReqPerSec={game.incomingReqPerSec}
+                    totalCapacity={game.totalCapacity}
+                    droppedReqPerSec={game.droppedReqPerSec}
+                    loadPercent={game.loadPercent}
+                    activeBottleneck={game.activeBottleneck}
+                    packets={game.packets}
+                    onPublish={game.publishProduct}
+                  />
 
-            {/* Bottom Control Deck */}
-            <BottomDeck
-              phase={game.phase}
-              mode={game.mode}
-              activeTab={activeTab}
-              setActiveTab={setActiveTab}
-              cash={game.cash}
-              installedBuildIds={game.installedBuildIds}
-              infraLevels={game.infraLevels}
-              marketingLevels={game.marketingLevels}
-              hiredCrewIds={game.hiredCrewIds}
-              droppedReqPerSec={game.droppedReqPerSec}
-              onInstallBuild={game.installBuildModule}
-              getInfraCost={game.getInfraCost}
-              onUpgradeInfra={game.upgradeInfra}
-              getMarketingCost={game.getMarketingCost}
-              onUpgradeMarketing={game.upgradeMarketing}
-              onHireCrew={game.hireCrew}
-            />
+                  <BottomDeck
+                    phase={game.phase}
+                    mode={game.mode}
+                    rigSubTab={game.rigSubTab}
+                    setRigSubTab={game.setRigSubTab}
+                    cash={game.cash}
+                    installedBuildIds={game.installedBuildIds}
+                    infraLevels={game.infraLevels}
+                    activeBottleneck={game.activeBottleneck}
+                    onInstallBuild={game.installBuildModule}
+                    getInfraCost={game.getInfraCost}
+                    onUpgradeInfra={game.upgradeInfra}
+                  />
+                </View>
+              ) : (
+                <>
+                  {/* PHASE 2 SCREEN ROUTING */}
+                  {game.activeTab === 'rig' && (
+                    <View style={styles.rigLayout}>
+                      <ArchitectureCanvas
+                        phase={game.phase}
+                        mode={game.mode}
+                        product={game.product}
+                        buildProgress={game.buildProgress}
+                        canPublish={game.canPublish}
+                        installedBuildIds={game.installedBuildIds}
+                        terminalLogs={game.terminalLogs}
+                        infraLevels={game.infraLevels}
+                        temperature={game.temperature}
+                        isThermalThrottling={game.isThermalThrottling}
+                        powerKw={game.powerKw}
+                        incomingReqPerSec={game.incomingReqPerSec}
+                        totalCapacity={game.totalCapacity}
+                        droppedReqPerSec={game.droppedReqPerSec}
+                        loadPercent={game.loadPercent}
+                        activeBottleneck={game.activeBottleneck}
+                        packets={game.packets}
+                        onPublish={game.publishProduct}
+                      />
+
+                      <BottomDeck
+                        phase={game.phase}
+                        mode={game.mode}
+                        rigSubTab={game.rigSubTab}
+                        setRigSubTab={game.setRigSubTab}
+                        cash={game.cash}
+                        installedBuildIds={game.installedBuildIds}
+                        infraLevels={game.infraLevels}
+                        activeBottleneck={game.activeBottleneck}
+                        onInstallBuild={game.installBuildModule}
+                        getInfraCost={game.getInfraCost}
+                        onUpgradeInfra={game.upgradeInfra}
+                      />
+                    </View>
+                  )}
+
+                  {game.activeTab === 'clients' && (
+                    <ClientRoadmap
+                      jobs={game.clientJobs}
+                      currentJob={game.currentJob}
+                      currentProgress={game.currentJobProgress}
+                      gems={game.gems}
+                      incomingReqPerSec={game.incomingReqPerSec}
+                      onSelectJob={game.selectClientJob}
+                      onSpeedUp={game.speedUpJob}
+                    />
+                  )}
+
+                  {game.activeTab === 'cards' && (
+                    <CrewCards
+                      hiredCrewIds={game.hiredCrewIds}
+                      cash={game.cash}
+                      onHireCrew={game.hireCrew}
+                    />
+                  )}
+
+                  {game.activeTab === 'lab' && (
+                    <LabScreen
+                      mode={game.mode}
+                      unlockedLabIds={game.unlockedLabIds}
+                      cash={game.cash}
+                      onUnlockLab={game.unlockLab}
+                    />
+                  )}
+
+                  {game.activeTab === 'shop' && (
+                    <ShopScreen
+                      cash={game.cash}
+                      gems={game.gems}
+                      onClaimGrant={(amt) => game.startGame(game.mode, game.product.id, 'golang', 'postgres')} // re-grant
+                      onTradeGems={(gAmt, cReward) => {}}
+                    />
+                  )}
+                </>
+              )}
+            </View>
+
+            {/* BOTTOM 5-TAB BAR (Matching Screenshots 1-5) */}
+            {game.phase === 'live' && (
+              <View style={styles.bottomNav}>
+                {navTabs.map((t) => {
+                  const active = game.activeTab === t.id;
+                  return (
+                    <TouchableOpacity
+                      key={t.id}
+                      style={[styles.navBtn, active && styles.navBtnActive]}
+                      onPress={() => game.setActiveTab(t.id)}
+                    >
+                      <Text style={styles.navIcon}>{t.icon}</Text>
+                      <Text style={[styles.navText, active && styles.navTextActive]}>
+                        {t.label}
+                      </Text>
+                      {active && <View style={styles.navActiveIndicator} />}
+                    </TouchableOpacity>
+                  );
+                })}
+              </View>
+            )}
           </View>
         )}
       </SafeAreaView>
@@ -103,55 +261,185 @@ const styles = StyleSheet.create({
   },
   container: {
     flex: 1,
+    backgroundColor: '#070B14',
   },
-  hud: {
+  topBar: {
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'center',
-    paddingHorizontal: 16,
-    paddingVertical: 10,
+    paddingHorizontal: 12,
+    paddingVertical: 8,
+    backgroundColor: '#070B14',
+    borderBottomWidth: 1,
+    borderBottomColor: '#1E293B',
   },
-  hudLabel: {
-    color: '#64748B',
-    fontSize: 11,
-    fontWeight: '800',
-    letterSpacing: 0.8,
+  topBarLeft: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
   },
-  cashText: {
-    color: '#10B981',
-    fontSize: 24,
+  levelBadge: {
+    backgroundColor: '#0F172A',
+    borderWidth: 1,
+    borderColor: '#334155',
+    paddingHorizontal: 8,
+    paddingVertical: 4,
+    borderRadius: 6,
+  },
+  levelText: {
+    color: '#94A3B8',
+    fontSize: 10,
     fontWeight: '900',
   },
-  hudRight: {
-    alignItems: 'flex-end',
+  modeBadge: {
+    backgroundColor: '#083344',
+    borderWidth: 1,
+    borderColor: '#22D3EE',
+    paddingHorizontal: 6,
+    paddingVertical: 4,
+    borderRadius: 6,
   },
-  netText: {
+  modeText: {
+    color: '#22D3EE',
+    fontSize: 10,
+    fontWeight: '900',
+  },
+  topBarCenter: {
+    alignItems: 'center',
+  },
+  centerTitle: {
     color: '#F8FAFC',
-    fontSize: 15,
+    fontSize: 11,
+    fontWeight: '900',
+    letterSpacing: 0.8,
+  },
+  centerNetIncome: {
+    color: '#10B981',
+    fontSize: 13,
+    fontWeight: '900',
+    marginTop: 1,
+  },
+  topBarRight: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+  },
+  cashPill: {
+    backgroundColor: '#062822',
+    borderWidth: 1,
+    borderColor: '#10B981',
+    paddingHorizontal: 8,
+    paddingVertical: 4,
+    borderRadius: 6,
+  },
+  cashPillText: {
+    color: '#10B981',
+    fontSize: 11,
+    fontWeight: '900',
+  },
+  gemPill: {
+    backgroundColor: '#082F49',
+    borderWidth: 1,
+    borderColor: '#38BDF8',
+    paddingHorizontal: 6,
+    paddingVertical: 4,
+    borderRadius: 6,
+  },
+  gemPillText: {
+    color: '#38BDF8',
+    fontSize: 11,
+    fontWeight: '900',
+  },
+  billingRibbon: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    backgroundColor: '#0B132B',
+    paddingHorizontal: 14,
+    paddingVertical: 5,
+    borderBottomWidth: 1,
+    borderBottomColor: '#1E293B',
+  },
+  billingItem: {
+    color: '#64748B',
+    fontSize: 10,
     fontWeight: '800',
   },
-  burnText: {
+  billingHighlight: {
+    color: '#F8FAFC',
+  },
+  burnHighlight: {
     color: '#F43F5E',
-    fontSize: 11,
-    fontWeight: '700',
+  },
+  usersHighlight: {
+    color: '#22D3EE',
   },
   chaosBanner: {
     backgroundColor: '#450A0A',
     borderWidth: 1,
     borderColor: '#F43F5E',
-    marginHorizontal: 14,
-    marginBottom: 8,
-    padding: 10,
-    borderRadius: 10,
+    marginHorizontal: 12,
+    marginTop: 6,
+    padding: 8,
+    borderRadius: 8,
   },
   chaosTitle: {
     color: '#FDA4AF',
-    fontSize: 12,
+    fontSize: 11,
     fontWeight: '900',
   },
   chaosDesc: {
     color: '#FECDD3',
-    fontSize: 11,
+    fontSize: 10,
     marginTop: 2,
+  },
+  mainContent: {
+    flex: 1,
+  },
+  buildLayout: {
+    flex: 1,
+  },
+  rigLayout: {
+    flex: 1,
+  },
+
+  // Bottom 5-Tab Bar
+  bottomNav: {
+    flexDirection: 'row',
+    backgroundColor: '#070B14',
+    borderTopWidth: 1.5,
+    borderTopColor: '#1E293B',
+    paddingVertical: 6,
+    paddingHorizontal: 4,
+  },
+  navBtn: {
+    flex: 1,
+    alignItems: 'center',
+    paddingVertical: 4,
+    position: 'relative',
+  },
+  navBtnActive: {
+    opacity: 1,
+  },
+  navIcon: {
+    fontSize: 18,
+    marginBottom: 2,
+  },
+  navText: {
+    color: '#64748B',
+    fontSize: 10,
+    fontWeight: '800',
+    letterSpacing: 0.5,
+  },
+  navTextActive: {
+    color: '#22D3EE',
+    fontWeight: '900',
+  },
+  navActiveIndicator: {
+    position: 'absolute',
+    bottom: -6,
+    width: 20,
+    height: 3,
+    backgroundColor: '#22D3EE',
+    borderRadius: 1.5,
   },
 });

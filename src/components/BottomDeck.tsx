@@ -6,333 +6,365 @@ import {
   TouchableOpacity,
   View,
 } from 'react-native';
-import {
-  BUILD_MODULES,
-  CREW_MEMBERS,
-  INFRA_NODES,
-  MARKETING_CHANNELS,
-} from '../data/gameData';
-import { DeckTab, GamePhase, PlayerMode } from '../types/game';
+import { BUILD_MODULES, INFRA_NODES } from '../data/gameData';
+import { GamePhase, PlayerMode, RigSubTab } from '../types/game';
 
 interface Props {
   phase: GamePhase;
   mode: PlayerMode;
-  activeTab: DeckTab;
-  setActiveTab: (t: DeckTab) => void;
+  rigSubTab: RigSubTab;
+  setRigSubTab: (tab: RigSubTab) => void;
   cash: number;
   installedBuildIds: string[];
   infraLevels: Record<string, number>;
-  marketingLevels: Record<string, number>;
-  hiredCrewIds: string[];
-  droppedReqPerSec: number;
+  activeBottleneck: string;
   onInstallBuild: (id: string) => void;
   getInfraCost: (id: string) => number;
   onUpgradeInfra: (id: string) => void;
-  getMarketingCost: (id: string) => number;
-  onUpgradeMarketing: (id: string) => void;
-  onHireCrew: (id: string) => void;
 }
 
 export const BottomDeck: React.FC<Props> = ({
   phase,
   mode,
-  activeTab,
-  setActiveTab,
+  rigSubTab,
+  setRigSubTab,
   cash,
   installedBuildIds,
   infraLevels,
-  marketingLevels,
-  hiredCrewIds,
-  droppedReqPerSec,
+  activeBottleneck,
   onInstallBuild,
   getInfraCost,
   onUpgradeInfra,
-  getMarketingCost,
-  onUpgradeMarketing,
-  onHireCrew,
 }) => {
-  const tabs: { id: DeckTab; label: string }[] =
-    phase === 'build'
-      ? [
-          { id: 'build', label: 'BUILD' },
-          { id: 'learn', label: 'GUIDE' },
-        ]
-      : [
-          { id: 'infra', label: 'INFRA' },
-          { id: 'marketing', label: 'GROWTH' },
-          { id: 'crew', label: 'CREW' },
-          { id: 'learn', label: 'GUIDE' },
-        ];
+  // Phase 1: Build Modules Deck
+  if (phase === 'build') {
+    return (
+      <View style={styles.deckContainer}>
+        <View style={styles.deckHeader}>
+          <Text style={styles.deckSectionTitle}>
+            PRODUCT ENGINEERING ROADMAP ({installedBuildIds.length}/{BUILD_MODULES.length} MILESTONES)
+          </Text>
+        </View>
 
-  return (
-    <View style={styles.container}>
-      {/* Tab Strip */}
-      <View style={styles.tabRow}>
-        {tabs.map((t) => {
-          const active = activeTab === t.id;
-          return (
-            <TouchableOpacity
-              key={t.id}
-              style={[styles.tabBtn, active && styles.tabBtnActive]}
-              onPress={() => setActiveTab(t.id)}
-            >
-              <Text style={[styles.tabText, active && styles.tabTextActive]}>
-                {t.label}
-              </Text>
-            </TouchableOpacity>
-          );
-        })}
-      </View>
-
-      {/* Deck Content */}
-      <ScrollView contentContainerStyle={styles.list}>
-        {activeTab === 'build' &&
-          BUILD_MODULES.map((mod) => {
+        <ScrollView contentContainerStyle={styles.buildList} showsVerticalScrollIndicator={false}>
+          {BUILD_MODULES.map((mod) => {
             const installed = installedBuildIds.includes(mod.id);
             const canAfford = cash >= mod.cost;
             return (
-              <View key={mod.id} style={styles.card}>
+              <View key={mod.id} style={[styles.buildCard, installed && styles.cardDone]}>
                 <View style={styles.cardInfo}>
-                  <Text style={styles.cardCategory}>{mod.category}</Text>
-                  <Text style={styles.cardTitle}>{mod.name}</Text>
-                  <Text style={styles.cardDesc}>
+                  <View style={styles.badgeRow}>
+                    <Text style={styles.categoryBadge}>{mod.category}</Text>
+                    {installed && <Text style={styles.doneBadge}>✓ COMPILED</Text>}
+                  </View>
+                  <Text style={styles.buildTitle}>{mod.name}</Text>
+                  <Text style={styles.buildDesc}>
                     {mode === 'explorer' ? mod.explorerDesc : mod.devDesc}
                   </Text>
                 </View>
+
                 <TouchableOpacity
                   disabled={installed || !canAfford}
                   style={[
-                    styles.actionBtn,
+                    styles.buildActionBtn,
                     installed
-                      ? styles.btnDone
-                      : !canAfford && styles.btnDisabled,
+                      ? styles.btnInstalled
+                      : !canAfford
+                      ? styles.btnDisabled
+                      : styles.btnAfford,
                   ]}
                   onPress={() => onInstallBuild(mod.id)}
                 >
-                  <Text style={styles.actionBtnText}>
+                  <Text style={styles.buildActionBtnText}>
                     {installed ? 'DONE' : mod.cost === 0 ? 'FREE' : `$${mod.cost}`}
                   </Text>
                 </TouchableOpacity>
               </View>
             );
           })}
+        </ScrollView>
+      </View>
+    );
+  }
 
-        {activeTab === 'infra' &&
-          INFRA_NODES.map((node) => {
-            const lvl = infraLevels[node.id] || 0;
-            const cost = getInfraCost(node.id);
-            const canAfford = cash >= cost;
-            return (
-              <View
-                key={node.id}
+  // Phase 2: Live Hardware Tycoon Subtabs & Upgrade Deck
+  const subTabs: { id: RigSubTab; label: string; icon: string }[] = [
+    { id: 'compute', label: 'COMPUTE', icon: '⚡' },
+    { id: 'thermal', label: 'THERMAL', icon: '❄️' },
+    { id: 'ingress', label: 'INGRESS', icon: '🌐' },
+    { id: 'interconnect', label: 'FABRIC', icon: '🔗' },
+  ];
+
+  const currentNodes = INFRA_NODES.filter((n) => n.subTab === rigSubTab);
+
+  return (
+    <View style={styles.deckContainer}>
+      {/* Hardware Tycoon Subtabs */}
+      <View style={styles.subTabRow}>
+        {subTabs.map((st) => {
+          const active = rigSubTab === st.id;
+          return (
+            <TouchableOpacity
+              key={st.id}
+              style={[styles.subTabBtn, active && styles.subTabBtnActive]}
+              onPress={() => setRigSubTab(st.id)}
+            >
+              <Text style={[styles.subTabText, active && styles.subTabTextActive]}>
+                {st.icon} {st.label}
+              </Text>
+            </TouchableOpacity>
+          );
+        })}
+      </View>
+
+      {/* 2-Column Compact Upgrade Cards (Matching Reference Screenshots 3, 4, 5) */}
+      <ScrollView contentContainerStyle={styles.infraGrid} showsVerticalScrollIndicator={false}>
+        {currentNodes.map((node) => {
+          const lvl = infraLevels[node.id] || 0;
+          const cost = getInfraCost(node.id);
+          const canAfford = cash >= cost;
+          const isBottleneck = activeBottleneck === node.solvesBottleneck;
+
+          return (
+            <View
+              key={node.id}
+              style={[
+                styles.infraCard,
+                isBottleneck && styles.infraCardBottleneck,
+              ]}
+            >
+              {isBottleneck && (
+                <View style={styles.bottleneckTag}>
+                  <Text style={styles.bottleneckTagText}>● BOTTLENECK</Text>
+                </View>
+              )}
+
+              <View style={styles.infraCardHeader}>
+                <Text style={styles.infraName}>{node.shortName}</Text>
+                <Text style={styles.infraLevelBadge}>LV {lvl}</Text>
+              </View>
+
+              <Text style={styles.infraStats}>
+                {node.capacityPerLevel > 0 && `+${node.capacityPerLevel} REQ/S `}
+                {node.heatPerLevel < 0 && `${node.heatPerLevel}°C COOLING `}
+                {node.heatPerLevel > 0 && `+${node.heatPerLevel}°C HEAT `}
+                {`• -$${node.burnPerSec}/S`}
+              </Text>
+
+              <Text style={styles.infraDesc} numberOfLines={2}>
+                {mode === 'explorer' ? node.explorerDesc : node.devDesc}
+              </Text>
+
+              <TouchableOpacity
+                disabled={!canAfford}
                 style={[
-                  styles.card,
-                  droppedReqPerSec > 0 && lvl === 0 && styles.cardHighlight,
+                  styles.infraBuyBtn,
+                  !canAfford ? styles.btnDisabled : styles.btnAfford,
                 ]}
+                onPress={() => onUpgradeInfra(node.id)}
               >
-                <View style={styles.cardInfo}>
-                  <Text style={styles.cardCategory}>
-                    LV {lvl} • +{node.capacityPerLevel} REQ/S • -${node.burnPerSec}/S
-                  </Text>
-                  <Text style={styles.cardTitle}>{node.name}</Text>
-                  <Text style={styles.cardDesc}>
-                    {mode === 'explorer' ? node.explorerDesc : node.devDesc}
-                  </Text>
-                </View>
-                <TouchableOpacity
-                  disabled={!canAfford}
-                  style={[styles.actionBtn, !canAfford && styles.btnDisabled]}
-                  onPress={() => onUpgradeInfra(node.id)}
-                >
-                  <Text style={styles.actionBtnText}>${cost}</Text>
-                </TouchableOpacity>
-              </View>
-            );
-          })}
-
-        {activeTab === 'marketing' &&
-          MARKETING_CHANNELS.map((ch) => {
-            const lvl = marketingLevels[ch.id] || 0;
-            const cost = getMarketingCost(ch.id);
-            const canAfford = cash >= cost;
-            return (
-              <View key={ch.id} style={styles.card}>
-                <View style={styles.cardInfo}>
-                  <Text style={styles.cardCategory}>
-                    LV {lvl} • +{ch.reqPerSecBoost} USERS/S
-                  </Text>
-                  <Text style={styles.cardTitle}>{ch.name}</Text>
-                  <Text style={styles.cardDesc}>
-                    {mode === 'explorer' ? ch.explorerDesc : ch.devDesc}
-                  </Text>
-                </View>
-                <TouchableOpacity
-                  disabled={!canAfford}
-                  style={[styles.actionBtn, !canAfford && styles.btnDisabled]}
-                  onPress={() => onUpgradeMarketing(ch.id)}
-                >
-                  <Text style={styles.actionBtnText}>${cost}</Text>
-                </TouchableOpacity>
-              </View>
-            );
-          })}
-
-        {activeTab === 'crew' &&
-          CREW_MEMBERS.map((member) => {
-            const hired = hiredCrewIds.includes(member.id);
-            const canAfford = cash >= member.cost;
-            return (
-              <View key={member.id} style={styles.card}>
-                <View style={styles.cardInfo}>
-                  <Text style={styles.cardCategory}>{member.role.toUpperCase()}</Text>
-                  <Text style={styles.cardTitle}>{member.name}</Text>
-                  <Text style={styles.cardDesc}>{member.bonusText}</Text>
-                </View>
-                <TouchableOpacity
-                  disabled={hired || !canAfford}
-                  style={[
-                    styles.actionBtn,
-                    hired ? styles.btnDone : !canAfford && styles.btnDisabled,
-                  ]}
-                  onPress={() => onHireCrew(member.id)}
-                >
-                  <Text style={styles.actionBtnText}>
-                    {hired ? 'HIRED' : `$${member.cost}`}
-                  </Text>
-                </TouchableOpacity>
-              </View>
-            );
-          })}
-
-        {activeTab === 'learn' && (
-          <View style={styles.learnCard}>
-            <Text style={styles.learnTitle}>How Real Products Scale</Text>
-            <Text style={styles.learnText}>
-              • <Text style={styles.bold}>Blue Packets</Text>: Images & videos. Add a Global CDN to serve them instantly.
-            </Text>
-            <Text style={styles.learnText}>
-              • <Text style={styles.bold}>Green Packets</Text>: Read requests. Add Redis Cache so your database stays fast.
-            </Text>
-            <Text style={styles.learnText}>
-              • <Text style={styles.bold}>Amber Packets</Text>: Heavy writes & orders. Add Kafka Queue to prevent crashes.
-            </Text>
-            <Text style={styles.learnText}>
-              • <Text style={styles.bold}>Red Packets</Text>: Dropped users! Upgrade Kubernetes Pods or Load Balancers immediately.
-            </Text>
-          </View>
-        )}
+                <Text style={styles.infraBuyBtnText}>
+                  ${cost >= 1000 ? `${(cost / 1000).toFixed(1)}K` : cost}
+                </Text>
+              </TouchableOpacity>
+            </View>
+          );
+        })}
       </ScrollView>
     </View>
   );
 };
 
 const styles = StyleSheet.create({
-  container: {
+  deckContainer: {
     flex: 1,
-    paddingHorizontal: 14,
+    paddingHorizontal: 10,
+    paddingTop: 4,
   },
-  tabRow: {
-    flexDirection: 'row',
-    gap: 8,
-    marginBottom: 10,
+  deckHeader: {
+    paddingVertical: 6,
+    paddingHorizontal: 4,
   },
-  tabBtn: {
-    flex: 1,
-    backgroundColor: '#0F172A',
-    paddingVertical: 10,
-    borderRadius: 10,
-    alignItems: 'center',
-    borderWidth: 1,
-    borderColor: '#1E293B',
-  },
-  tabBtnActive: {
-    backgroundColor: '#22D3EE',
-    borderColor: '#22D3EE',
-  },
-  tabText: {
-    color: '#94A3B8',
-    fontSize: 12,
+  deckSectionTitle: {
+    color: '#64748B',
+    fontSize: 10,
     fontWeight: '800',
+    letterSpacing: 1,
   },
-  tabTextActive: {
-    color: '#042F2E',
-  },
-  list: {
+  buildList: {
     paddingBottom: 24,
-    gap: 10,
+    gap: 8,
   },
-  card: {
+  buildCard: {
     backgroundColor: '#0F172A',
-    borderRadius: 14,
+    borderRadius: 12,
     borderWidth: 1,
     borderColor: '#1E293B',
-    padding: 12,
+    padding: 10,
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'space-between',
-    gap: 12,
+    gap: 10,
   },
-  cardHighlight: {
-    borderColor: '#F59E0B',
+  cardDone: {
+    borderColor: '#10B981',
+    backgroundColor: '#061A1E',
   },
   cardInfo: {
     flex: 1,
   },
-  cardCategory: {
-    color: '#22D3EE',
-    fontSize: 10,
-    fontWeight: '800',
+  badgeRow: {
+    flexDirection: 'row',
+    gap: 6,
+    alignItems: 'center',
     marginBottom: 2,
   },
-  cardTitle: {
+  categoryBadge: {
+    color: '#22D3EE',
+    fontSize: 9,
+    fontWeight: '900',
+    letterSpacing: 0.5,
+  },
+  doneBadge: {
+    color: '#10B981',
+    fontSize: 9,
+    fontWeight: '900',
+  },
+  buildTitle: {
     color: '#F8FAFC',
-    fontSize: 15,
+    fontSize: 14,
     fontWeight: '800',
   },
-  cardDesc: {
+  buildDesc: {
     color: '#94A3B8',
-    fontSize: 12,
+    fontSize: 11,
+    lineHeight: 15,
     marginTop: 2,
   },
-  actionBtn: {
-    backgroundColor: '#10B981',
+  buildActionBtn: {
     paddingHorizontal: 14,
     paddingVertical: 10,
-    borderRadius: 10,
-    minWidth: 74,
+    borderRadius: 8,
+    minWidth: 70,
     alignItems: 'center',
+  },
+  buildActionBtnText: {
+    color: '#F8FAFC',
+    fontSize: 12,
+    fontWeight: '900',
+  },
+
+  // Subtabs
+  subTabRow: {
+    flexDirection: 'row',
+    gap: 6,
+    marginBottom: 8,
+  },
+  subTabBtn: {
+    flex: 1,
+    backgroundColor: '#0F172A',
+    paddingVertical: 8,
+    borderRadius: 8,
+    alignItems: 'center',
+    borderWidth: 1,
+    borderColor: '#1E293B',
+  },
+  subTabBtnActive: {
+    backgroundColor: '#22D3EE',
+    borderColor: '#22D3EE',
+  },
+  subTabText: {
+    color: '#94A3B8',
+    fontSize: 10,
+    fontWeight: '800',
+  },
+  subTabTextActive: {
+    color: '#042F2E',
+  },
+
+  // Infra Grid
+  infraGrid: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    gap: 8,
+    paddingBottom: 24,
+  },
+  infraCard: {
+    width: '48.5%',
+    backgroundColor: '#0F172A',
+    borderRadius: 10,
+    borderWidth: 1,
+    borderColor: '#1E293B',
+    padding: 10,
+    justifyContent: 'space-between',
+    minHeight: 120,
+    position: 'relative',
+  },
+  infraCardBottleneck: {
+    borderColor: '#F59E0B',
+    backgroundColor: '#1E1B13',
+  },
+  bottleneckTag: {
+    position: 'absolute',
+    top: -8,
+    right: 8,
+    backgroundColor: '#F59E0B',
+    paddingHorizontal: 6,
+    paddingVertical: 2,
+    borderRadius: 4,
+  },
+  bottleneckTagText: {
+    color: '#451A03',
+    fontSize: 8,
+    fontWeight: '900',
+  },
+  infraCardHeader: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    marginBottom: 2,
+  },
+  infraName: {
+    color: '#F8FAFC',
+    fontSize: 12,
+    fontWeight: '900',
+    flex: 1,
+  },
+  infraLevelBadge: {
+    color: '#22D3EE',
+    fontSize: 10,
+    fontWeight: '900',
+  },
+  infraStats: {
+    color: '#10B981',
+    fontSize: 9,
+    fontWeight: '800',
+    marginTop: 2,
+  },
+  infraDesc: {
+    color: '#94A3B8',
+    fontSize: 10,
+    lineHeight: 14,
+    marginVertical: 4,
+  },
+  infraBuyBtn: {
+    paddingVertical: 8,
+    borderRadius: 6,
+    alignItems: 'center',
+    marginTop: 4,
+  },
+  infraBuyBtnText: {
+    color: '#042F2E',
+    fontSize: 12,
+    fontWeight: '900',
+  },
+  btnAfford: {
+    backgroundColor: '#10B981',
   },
   btnDisabled: {
     backgroundColor: '#1E293B',
   },
-  btnDone: {
+  btnInstalled: {
     backgroundColor: '#083344',
-  },
-  actionBtnText: {
-    color: '#F8FAFC',
-    fontSize: 13,
-    fontWeight: '900',
-  },
-  learnCard: {
-    backgroundColor: '#0F172A',
-    borderRadius: 14,
-    padding: 16,
-    borderWidth: 1,
-    borderColor: '#1E293B',
-    gap: 10,
-  },
-  learnTitle: {
-    color: '#22D3EE',
-    fontSize: 16,
-    fontWeight: '900',
-  },
-  learnText: {
-    color: '#CBD5E1',
-    fontSize: 13,
-    lineHeight: 19,
-  },
-  bold: {
-    color: '#F8FAFC',
-    fontWeight: '800',
   },
 });
