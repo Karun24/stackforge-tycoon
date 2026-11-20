@@ -1,0 +1,20 @@
+{
+  "expo": {
+    "name": "StackForge: System Design Tycoon",
+    "slug": "stackforge-tycoon",
+    "version": "1.0.0",
+    "orientation": "portrait",
+    "userInterfaceStyle": "dark",
+    "backgroundColor": "#070B14",
+    "android": {
+      "package": "com.stackforge.tycoon",
+      "adaptiveIcon": {
+        "backgroundColor": "#070B14"
+      }
+    },
+    "ios": {
+      "bundleIdentifier": "com.stackforge.tycoon",
+      "supportsTablet": true
+    }
+  }
+}

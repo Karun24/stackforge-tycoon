@@ -1,0 +1,25 @@
+{
+  "name": "stackforge-tycoon",
+  "version": "1.0.0",
+  "main": "expo/AppEntry.js",
+  "scripts": {
+    "start": "NODE_OPTIONS=\"--require ./node-polyfill.js\" expo start",
+    "android": "NODE_OPTIONS=\"--require ./node-polyfill.js\" expo start --android",
+    "ios": "NODE_OPTIONS=\"--require ./node-polyfill.js\" expo start --ios",
+    "web": "NODE_OPTIONS=\"--require ./node-polyfill.js\" expo start --web"
+  },
+  "dependencies": {
+    "buffer": "^6.0.3",
+    "expo": "~58.0.0",
+    "expo-status-bar": "~2.2.0",
+    "react": "19.3.0",
+    "react-native": "0.88.0",
+    "react-native-safe-area-context": "5.4.0",
+    "react-native-svg": "15.11.0"
+  },
+  "devDependencies": {
+    "@types/react": "~19.0.0",
+    "typescript": "~5.8.0"
+  },
+  "private": true
+}
