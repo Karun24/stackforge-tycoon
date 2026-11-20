@@ -12,19 +12,19 @@ import Svg, {
   Defs,
   G,
   LinearGradient,
+  Line,
   Path,
   Rect,
   Stop,
   Text as SvgText,
 } from 'react-native-svg';
-import { GamePhase, Packet, PlayerMode, ProductTemplate } from '../types/game';
+import { GamePhase, Packet, PlayerMode, ProductTemplate, RigSubTab } from '../types/game';
 
 interface Props {
   phase: GamePhase;
   mode: PlayerMode;
   product: ProductTemplate;
   buildProgress: number;
-  canPublish: boolean;
   installedBuildIds: string[];
   terminalLogs: string[];
   infraLevels: Record<string, number>;
@@ -33,19 +33,14 @@ interface Props {
   powerKw: number;
   incomingReqPerSec: number;
   totalCapacity: number;
-  droppedReqPerSec: number;
-  loadPercent: number;
   activeBottleneck: string;
   packets: Packet[];
-  onPublish: () => void;
+  activeSubTab: RigSubTab;
+  onSelectSubTab: (tab: RigSubTab) => void;
+  onRev: () => void;
+  floatingCashList: { id: number; text: string; x: number; y: number }[];
+  dynoScore: number;
 }
-
-const PACKET_COLORS: Record<Packet['type'], string> = {
-  static: '#38BDF8', // Neon Cyan: Static/CDN
-  read: '#34D399',   // Emerald Green: Cache/Reads
-  write: '#FBBF24',  // Amber Yellow: Queue/Writes
-  dropped: '#F43F5E', // Rose Red: Dropped Packet
-};
 
 const SCREEN_WIDTH = Dimensions.get('window').width;
 
@@ -54,7 +49,6 @@ export const ArchitectureCanvas: React.FC<Props> = ({
   mode,
   product,
   buildProgress,
-  canPublish,
   installedBuildIds,
   terminalLogs,
   infraLevels,
@@ -63,680 +57,726 @@ export const ArchitectureCanvas: React.FC<Props> = ({
   powerKw,
   incomingReqPerSec,
   totalCapacity,
-  droppedReqPerSec,
-  loadPercent,
   activeBottleneck,
   packets,
-  onPublish,
+  activeSubTab,
+  onSelectSubTab,
+  onRev,
+  floatingCashList,
+  dynoScore,
 }) => {
-  // Fan rotation animation
-  const fanAnim = useRef(new Animated.Value(0)).current;
+  // Continuous fan rotation animation
+  const fanRotation = useRef(new Animated.Value(0)).current;
+  const pulseAnim = useRef(new Animated.Value(1)).current;
+  const revScaleAnim = useRef(new Animated.Value(1)).current;
 
   useEffect(() => {
-    const loop = Animated.loop(
-      Animated.timing(fanAnim, {
+    // 3000 RPM fan spin
+    const fanLoop = Animated.loop(
+      Animated.timing(fanRotation, {
         toValue: 1,
-        duration: isThermalThrottling ? 500 : 1200,
+        duration: isThermalThrottling ? 250 : 600,
         useNativeDriver: true,
       })
     );
-    loop.start();
-    return () => loop.stop();
+    fanLoop.start();
+
+    // Subtle server pulse
+    const pulseLoop = Animated.loop(
+      Animated.sequence([
+        Animated.timing(pulseAnim, {
+          toValue: 1.08,
+          duration: 1000,
+          useNativeDriver: true,
+        }),
+        Animated.timing(pulseAnim, {
+          toValue: 1,
+          duration: 1000,
+          useNativeDriver: true,
+        }),
+      ])
+    );
+    pulseLoop.start();
+
+    return () => {
+      fanLoop.stop();
+      pulseLoop.stop();
+    };
   }, [isThermalThrottling]);
 
-  const fanSpin = fanAnim.interpolate({
+  const spin = fanRotation.interpolate({
     inputRange: [0, 1],
     outputRange: ['0deg', '360deg'],
   });
 
-  // --- PHASE 1: FULL SCREEN LOCAL DEV WORKSPACE ---
-  if (phase === 'build') {
-    const hasDocker = installedBuildIds.includes('docker');
-    const hasDb = installedBuildIds.includes('primary_db');
-    const hasTests = installedBuildIds.includes('test_suite');
+  const handlePressRev = () => {
+    Animated.sequence([
+      Animated.timing(revScaleAnim, {
+        toValue: 0.96,
+        duration: 50,
+        useNativeDriver: true,
+      }),
+      Animated.timing(revScaleAnim, {
+        toValue: 1.04,
+        duration: 100,
+        useNativeDriver: true,
+      }),
+      Animated.timing(revScaleAnim, {
+        toValue: 1,
+        duration: 80,
+        useNativeDriver: true,
+      }),
+    ]).start();
+    onRev();
+  };
 
+  // Build Phase Visual
+  if (phase === 'build') {
     return (
       <View style={styles.buildContainer}>
-        {/* IDE Top Bar */}
+        {/* IDE & TERMINAL SCREEN */}
         <View style={styles.ideHeader}>
-          <View style={styles.ideHeaderLeft}>
-            <View style={[styles.windowDot, { backgroundColor: '#EF4444' }]} />
-            <View style={[styles.windowDot, { backgroundColor: '#F59E0B' }]} />
-            <View style={[styles.windowDot, { backgroundColor: '#10B981' }]} />
-            <Text style={styles.ideTitle}>VS CODE // {product.name.toUpperCase()}</Text>
+          <View style={styles.ideDots}>
+            <View style={[styles.dot, { backgroundColor: '#EF4444' }]} />
+            <View style={[styles.dot, { backgroundColor: '#F59E0B' }]} />
+            <View style={[styles.dot, { backgroundColor: '#10B981' }]} />
           </View>
-          <View style={styles.progressPill}>
-            <Text style={styles.progressText}>{buildProgress}% COMPILED</Text>
-          </View>
+          <Text style={styles.ideTitle}>
+            📁 {product.name.toLowerCase()} — main.ts (TypeScript 5.8)
+          </Text>
         </View>
 
-        {/* IDE Editor Tabs */}
-        <View style={styles.editorTabs}>
-          <View style={[styles.editorTab, styles.editorTabActive]}>
-            <Text style={styles.editorTabTextActive}>App.tsx</Text>
-          </View>
-          <View style={styles.editorTab}>
-            <Text style={styles.editorTabText}>schema.prisma</Text>
-          </View>
-          <View style={styles.editorTab}>
-            <Text style={styles.editorTabText}>Dockerfile</Text>
-          </View>
-          <View style={styles.editorTab}>
-            <Text style={styles.editorTabText}>deploy.yml</Text>
-          </View>
+        <View style={styles.terminalBody}>
+          <Text style={styles.terminalHeader}>
+            BUILD PROGRESS: {buildProgress}% [
+            {'■'.repeat(Math.floor(buildProgress / 10))}
+            {' '.repeat(10 - Math.floor(buildProgress / 10))}]
+          </Text>
+          {terminalLogs.slice(-5).map((log, index) => (
+            <Text key={index} style={styles.terminalLine} numberOfLines={1}>
+              {log}
+            </Text>
+          ))}
+          <Text style={styles.terminalCursor}>&gt; ready for next module_</Text>
         </View>
 
-        {/* Code Visualizer */}
-        <View style={styles.codeWindow}>
-          <View style={styles.lineNumbers}>
-            {[1, 2, 3, 4, 5, 6, 7, 8].map((n) => (
-              <Text key={n} style={styles.lineNumberText}>
-                {n}
-              </Text>
-            ))}
-          </View>
-          <View style={styles.codeLines}>
-            <Text style={styles.codeLine}>
-              <Text style={{ color: '#C084FC' }}>import</Text> {'{'} ProductEngine {'}'}{' '}
-              <Text style={{ color: '#C084FC' }}>from</Text>{' '}
-              <Text style={{ color: '#FDE047' }}>'@core/engine'</Text>;
+        {/* DOCKER & CONTAINER PROGRESS SEAL */}
+        <View style={styles.buildFooter}>
+          <View style={styles.badgeRow}>
+            <Text style={styles.badgeText}>
+              📦 MODULES: {installedBuildIds.length} / 8 INSTALLED
             </Text>
-            <Text style={styles.codeLine}>
-              <Text style={{ color: '#38BDF8' }}>const</Text> app ={' '}
-              <Text style={{ color: '#34D399' }}>new</Text> ProductEngine({'{'}
+            <Text style={styles.badgeStatus}>
+              {buildProgress >= 100 ? '✅ READY TO DEPLOY' : '⚡ COMPILING'}
             </Text>
-            <Text style={styles.codeLine}>
-              {'  '}name: <Text style={{ color: '#FDE047' }}>'{product.name}'</Text>,
-            </Text>
-            <Text style={styles.codeLine}>
-              {'  '}database:{' '}
-              <Text style={{ color: hasDb ? '#34D399' : '#64748B' }}>
-                {hasDb ? "'postgres://cluster:5432'" : 'null /* PENDING */'}
-              </Text>
-              ,
-            </Text>
-            <Text style={styles.codeLine}>
-              {'  '}container:{' '}
-              <Text style={{ color: hasDocker ? '#22D3EE' : '#64748B' }}>
-                {hasDocker ? "'docker.io/dist:latest'" : 'null /* UNPACKAGED */'}
-              </Text>
-              ,
-            </Text>
-            <Text style={styles.codeLine}>
-              {'  '}tests:{' '}
-              <Text style={{ color: hasTests ? '#10B981' : '#64748B' }}>
-                {hasTests ? "'PASS (214/214)'" : "'RUNNING...'"}
-              </Text>
-            </Text>
-            <Text style={styles.codeLine}>{'}'});</Text>
-            <Text style={styles.codeLine}>
-              <Text style={{ color: '#38BDF8' }}>export default</Text> app.listen(
-              <Text style={{ color: '#F97316' }}>8080</Text>);
-            </Text>
-          </View>
-
-          {/* Docker Overlay Box */}
-          {hasDocker && (
-            <View style={styles.dockerOverlayBadge}>
-              <Text style={styles.dockerOverlayText}>🐳 DOCKER SEALED</Text>
-            </View>
-          )}
-        </View>
-
-        {/* Live Terminal Output */}
-        <View style={styles.terminalContainer}>
-          <View style={styles.terminalHeader}>
-            <Text style={styles.terminalHeaderText}>TERMINAL // BASH</Text>
-            <Text style={styles.terminalStatus}>
-              {canPublish ? '● BUILD SUCCEEDED' : '● COMPILING...'}
-            </Text>
-          </View>
-          <View style={styles.terminalContent}>
-            {terminalLogs.slice(-4).map((log, index) => (
-              <Text key={index} style={styles.logText}>
-                {log}
-              </Text>
-            ))}
           </View>
         </View>
-
-        {/* Publish Button */}
-        {canPublish && (
-          <TouchableOpacity style={styles.launchBtn} onPress={onPublish}>
-            <Text style={styles.launchBtnText}>🚀 PUBLISH TO PUBLIC CLOUD →</Text>
-          </TouchableOpacity>
-        )}
       </View>
     );
   }
 
-  // --- PHASE 2: LIVE SYSTEM DESIGN & HARDWARE RACK CANVAS ---
-  const podCount = infraLevels['k8s_pods'] || 1;
-  const hasGpu = (infraLevels['gpu_rack'] || 0) > 0;
-  const hasLb = (infraLevels['nginx_lb'] || 0) > 0;
-  const hasCdn = (infraLevels['cdn_edge'] || 0) > 0;
-  const hasRedis = (infraLevels['redis_cluster'] || 0) > 0;
-  const hasKafka = (infraLevels['kafka_queue'] || 0) > 0;
-  const fanCount = infraLevels['case_fans'] || 1;
-  const isOverloaded = droppedReqPerSec > 0;
+  // Phase 4 Live: Hardware Tycoon Canvas (Matching Screenshots 9 & 13)
+  const loadPercentage = Math.min(100, Math.round((incomingReqPerSec / Math.max(1, totalCapacity)) * 100));
+  // Needle angles for dials (-120deg to +120deg)
+  const rpsNeedleAngle = -120 + (loadPercentage / 100) * 240;
+  const tempRatio = Math.min(1, Math.max(0, (temperature - 28) / (95 - 28)));
+  const tempNeedleAngle = -120 + tempRatio * 240;
 
   return (
-    <View style={styles.canvasContainer}>
-      {/* Top Telemetry Bar */}
-      <View style={styles.telemetryBar}>
-        <View style={styles.telemetryItem}>
-          <Text style={styles.telemetryLabel}>POWER (PDU)</Text>
-          <Text style={styles.telemetryValue}>{powerKw} kW</Text>
+    <View style={styles.liveContainer}>
+      {/* 1. ANALOG INSTRUMENT CLUSTER GAUGES (Screenshots 9 & 13) */}
+      <View style={styles.gaugeCluster}>
+        {/* TACH / RPS DIAL */}
+        <View style={styles.gaugeBox}>
+          <Text style={styles.gaugeLabel}>TACH RPS</Text>
+          <Svg width={72} height={60} viewBox="0 0 100 80">
+            <Defs>
+              <LinearGradient id="tachGrad" x1="0" y1="0" x2="1" y2="0">
+                <Stop offset="0%" stopColor="#22D3EE" />
+                <Stop offset="70%" stopColor="#10B981" />
+                <Stop offset="100%" stopColor="#EF4444" />
+              </LinearGradient>
+            </Defs>
+            {/* Background Arc */}
+            <Path
+              d="M 20 70 A 40 40 0 1 1 80 70"
+              fill="none"
+              stroke="#1E293B"
+              strokeWidth="8"
+              strokeLinecap="round"
+            />
+            {/* Active Gauge Arc */}
+            <Path
+              d="M 20 70 A 40 40 0 1 1 80 70"
+              fill="none"
+              stroke="url(#tachGrad)"
+              strokeWidth="8"
+              strokeDasharray="180"
+              strokeDashoffset={180 - (loadPercentage / 100) * 180}
+              strokeLinecap="round"
+            />
+            {/* Center Pivot */}
+            <Circle cx="50" cy="50" r="5" fill="#38BDF8" />
+            {/* Needle */}
+            <Line
+              x1="50"
+              y1="50"
+              x2="50"
+              y2="18"
+              stroke="#FFFFFF"
+              strokeWidth="3"
+              strokeLinecap="round"
+              transform={`rotate(${rpsNeedleAngle}, 50, 50)`}
+            />
+          </Svg>
+          <Text style={styles.gaugeValue}>{incomingReqPerSec}</Text>
         </View>
-        <View style={styles.telemetryItem}>
-          <Text style={styles.telemetryLabel}>CHIP TEMP</Text>
+
+        {/* THROUGHPUT / CAPACITY */}
+        <View style={styles.gaugeBox}>
+          <Text style={styles.gaugeLabel}>THROUGHPUT</Text>
+          <Text style={styles.centerScoreText}>
+            {totalCapacity >= 1000 ? `${(totalCapacity / 1000).toFixed(1)}k` : totalCapacity}
+          </Text>
+          <Text style={styles.gaugeSubtext}>MAX RPS</Text>
+        </View>
+
+        {/* CHIP TEMPERATURE GAUGE */}
+        <View style={styles.gaugeBox}>
+          <Text style={styles.gaugeLabel}>CHIP TEMP</Text>
+          <Svg width={72} height={60} viewBox="0 0 100 80">
+            <Defs>
+              <LinearGradient id="tempGrad" x1="0" y1="0" x2="1" y2="0">
+                <Stop offset="0%" stopColor="#38BDF8" />
+                <Stop offset="60%" stopColor="#F59E0B" />
+                <Stop offset="100%" stopColor="#EF4444" />
+              </LinearGradient>
+            </Defs>
+            <Path
+              d="M 20 70 A 40 40 0 1 1 80 70"
+              fill="none"
+              stroke="#1E293B"
+              strokeWidth="8"
+              strokeLinecap="round"
+            />
+            <Path
+              d="M 20 70 A 40 40 0 1 1 80 70"
+              fill="none"
+              stroke="url(#tempGrad)"
+              strokeWidth="8"
+              strokeDasharray="180"
+              strokeDashoffset={180 - tempRatio * 180}
+              strokeLinecap="round"
+            />
+            <Circle cx="50" cy="50" r="5" fill="#F59E0B" />
+            <Line
+              x1="50"
+              y1="50"
+              x2="50"
+              y2="18"
+              stroke="#FFFFFF"
+              strokeWidth="3"
+              strokeLinecap="round"
+              transform={`rotate(${tempNeedleAngle}, 50, 50)`}
+            />
+          </Svg>
           <Text
             style={[
-              styles.telemetryValue,
-              { color: isThermalThrottling ? '#F43F5E' : temperature > 65 ? '#F59E0B' : '#10B981' },
+              styles.gaugeValue,
+              { color: isThermalThrottling ? '#EF4444' : '#10B981' },
             ]}
           >
-            {temperature}°C
+            {temperature.toFixed(1)}°C
           </Text>
         </View>
-        <View style={styles.telemetryItem}>
-          <Text style={styles.telemetryLabel}>CAPACITY</Text>
-          <Text style={styles.telemetryValue}>{totalCapacity} REQ/S</Text>
-        </View>
-        <View style={styles.telemetryItem}>
-          <Text style={styles.telemetryLabel}>BOTTLENECK</Text>
-          <Text
-            style={[
-              styles.telemetryValue,
-              { color: activeBottleneck !== 'NOMINAL' ? '#F59E0B' : '#34D399' },
-            ]}
-          >
-            {activeBottleneck}
-          </Text>
+
+        {/* DYNO SCORE */}
+        <View style={styles.gaugeBox}>
+          <Text style={styles.gaugeLabel}>DYNO SCORE</Text>
+          <Text style={styles.dynoScoreText}>⚡ {dynoScore}</Text>
+          <Text style={styles.gaugeSubtext}>EFF 98.4%</Text>
         </View>
       </View>
 
-      {/* SVG Canvas for High-Density Server Rack */}
-      <Svg height="260" width="100%" viewBox="0 0 380 260">
-        <Defs>
-          <LinearGradient id="busGrad" x1="0" y1="1" x2="0" y2="0">
-            <Stop offset="0" stopColor="#0B1221" stopOpacity="0.8" />
-            <Stop offset="1" stopColor="#22D3EE" stopOpacity="0.3" />
-          </LinearGradient>
-          <LinearGradient id="rackGrad" x1="0" y1="0" x2="1" y2="1">
-            <Stop offset="0" stopColor="#0B132B" />
-            <Stop offset="1" stopColor="#070B14" />
-          </LinearGradient>
-        </Defs>
+      {/* 2. LIVE INTERACTIVE SERVER RACK (TAP OR HOLD TO REV IT!) */}
+      <Animated.View style={{ transform: [{ scale: revScaleAnim }] }}>
+        <TouchableOpacity
+          activeOpacity={0.88}
+          onPress={handlePressRev}
+          style={[
+            styles.rackChassis,
+            isThermalThrottling && styles.rackThrottlingGlow,
+          ]}
+        >
+          {/* Chassis Top Rail */}
+          <View style={styles.chassisRail}>
+            <View style={styles.ledCluster}>
+              <View style={[styles.led, { backgroundColor: '#10B981' }]} />
+              <View style={[styles.led, { backgroundColor: '#38BDF8' }]} />
+              <View
+                style={[
+                  styles.led,
+                  { backgroundColor: isThermalThrottling ? '#EF4444' : '#64748B' },
+                ]}
+              />
+            </View>
+            <Text style={styles.chassisLabel}>
+              42U RACK // {product.recommendedStack.toUpperCase()}
+            </Text>
+            <Text style={styles.pduLabel}>⚡ {powerKw.toFixed(1)} kW</Text>
+          </View>
 
-        {/* Outer 42U Server Rack Chassis */}
-        <Rect
-          x="12"
-          y="10"
-          width="356"
-          height="182"
-          rx="12"
-          fill="url(#rackGrad)"
-          stroke={isOverloaded ? '#F43F5E' : '#1E293B'}
-          strokeWidth="1.5"
-        />
+          {/* Sleds Inside Rack */}
+          <View style={styles.sledRow}>
+            {/* Redis Cache Sled */}
+            <View style={styles.sledBox}>
+              <Text style={styles.sledIcon}>⚡</Text>
+              <Text style={styles.sledName}>REDIS RAM</Text>
+              <Text style={styles.sledLvl}>LV {infraLevels.redis_sled || 0}</Text>
+            </View>
+            {/* SQL Sled */}
+            <View style={styles.sledBox}>
+              <Text style={styles.sledIcon}>💾</Text>
+              <Text style={styles.sledName}>SQL ACID</Text>
+              <Text style={styles.sledLvl}>LV {infraLevels.db_primary || 0}</Text>
+            </View>
+            {/* Blade Compute Sled */}
+            <View style={styles.sledBox}>
+              <Text style={styles.sledIcon}>🔲</Text>
+              <Text style={styles.sledName}>BLADE EPYC</Text>
+              <Text style={styles.sledLvl}>LV {infraLevels.app_server || 1}</Text>
+            </View>
+            {/* GPU Sled */}
+            <View style={styles.sledBox}>
+              <Text style={styles.sledIcon}>🧠</Text>
+              <Text style={styles.sledName}>H100 TENSOR</Text>
+              <Text style={styles.sledLvl}>LV {infraLevels.gpu_tensor || 0}</Text>
+            </View>
+          </View>
 
-        {/* Bus Trace Lines connecting Ingress to Sleds */}
-        <Path
-          d="M 190 230 L 190 170 M 190 170 L 80 150 M 190 170 L 190 125 M 190 170 L 300 150 M 190 125 L 105 85 M 190 125 L 275 85 M 105 85 L 105 38 M 275 85 L 275 38"
-          stroke="#1E293B"
-          strokeWidth="2"
-          fill="none"
-        />
+          {/* Animated Spinning Fans Tray */}
+          <View style={styles.fanTray}>
+            <View style={styles.fanHousing}>
+              <Animated.View style={{ transform: [{ rotate: spin }] }}>
+                <Svg width={36} height={36} viewBox="0 0 100 100">
+                  <Circle cx="50" cy="50" r="16" fill="#0F172A" />
+                  <Path d="M 50 50 Q 75 25 80 50 Q 65 60 50 50 Z" fill="#38BDF8" />
+                  <Path d="M 50 50 Q 75 75 50 80 Q 40 65 50 50 Z" fill="#38BDF8" />
+                  <Path d="M 50 50 Q 25 75 20 50 Q 35 40 50 50 Z" fill="#38BDF8" />
+                  <Path d="M 50 50 Q 25 25 50 20 Q 60 35 50 50 Z" fill="#38BDF8" />
+                </Svg>
+              </Animated.View>
+              <Text style={styles.fanSpeed}>
+                {isThermalThrottling ? '3600 RPM' : '2800 RPM'}
+              </Text>
+            </View>
 
-        {/* Animated Data Packets */}
-        {packets.map((p) => {
-          const startY = 225;
-          const endY = 38;
-          const y = startY - p.progress * (startY - endY);
+            <View style={styles.tapPromptBox}>
+              <Text style={styles.tapPromptText}>
+                👆 Tap or hold rack to rev traffic & earn cash!
+              </Text>
+            </View>
 
-          let targetX = 190;
-          if (p.lane === 0) targetX = 80;
-          else if (p.lane === 1) targetX = 145;
-          else if (p.lane === 2) targetX = 235;
-          else targetX = 300;
+            <View style={styles.fanHousing}>
+              <Animated.View style={{ transform: [{ rotate: spin }] }}>
+                <Svg width={36} height={36} viewBox="0 0 100 100">
+                  <Circle cx="50" cy="50" r="16" fill="#0F172A" />
+                  <Path d="M 50 50 Q 75 25 80 50 Q 65 60 50 50 Z" fill="#38BDF8" />
+                  <Path d="M 50 50 Q 75 75 50 80 Q 40 65 50 50 Z" fill="#38BDF8" />
+                  <Path d="M 50 50 Q 25 75 20 50 Q 35 40 50 50 Z" fill="#38BDF8" />
+                  <Path d="M 50 50 Q 25 25 50 20 Q 60 35 50 50 Z" fill="#38BDF8" />
+                </Svg>
+              </Animated.View>
+              <Text style={styles.fanSpeed}>
+                {isThermalThrottling ? '3600 RPM' : '2800 RPM'}
+              </Text>
+            </View>
+          </View>
 
-          const x =
-            p.progress < 0.35
-              ? 190
-              : 190 + ((p.progress - 0.35) / 0.65) * (targetX - 190);
+          {/* Floating cash notifications when tapped */}
+          {floatingCashList.map((item) => (
+            <Text
+              key={item.id}
+              style={[
+                styles.floatingCash,
+                { transform: [{ translateX: item.x }, { translateY: item.y }] },
+              ]}
+            >
+              {item.text}
+            </Text>
+          ))}
+        </TouchableOpacity>
+      </Animated.View>
 
+      {/* 3. BOTTLENECK WARNING BANNER (Screenshots 5 & 12) */}
+      <View
+        style={[
+          styles.bottleneckAlertBanner,
+          activeBottleneck === 'THERMAL' && styles.bottleneckThermal,
+          activeBottleneck === 'INGRESS' && styles.bottleneckIngress,
+        ]}
+      >
+        <Text style={styles.bottleneckAlertText}>
+          {activeBottleneck === 'THERMAL'
+            ? '🔥 Throttling 40%: Upgrade CHASSIS FAN or LIQUID COOLING'
+            : activeBottleneck === 'INGRESS'
+            ? '⚠️ Ingress Choked: Upgrade ANYCAST GATEWAY or LOAD BALANCER'
+            : activeBottleneck === 'DB READS'
+            ? '💾 DB Saturated: Upgrade REDIS CACHE or READ REPLICAS'
+            : activeBottleneck === 'COMPUTE'
+            ? '⚡ Compute Bound: Upgrade BLADE SERVERS or H100 TENSOR'
+            : '✅ System Design Operating at Maximum Peak Efficiency'}
+        </Text>
+      </View>
+
+      {/* 4. RIG SUB-TABS (Screenshots 2, 3, 4, 9, 13) */}
+      <View style={styles.subTabRow}>
+        {(
+          [
+            { id: 'compute', label: 'COMPUTE', icon: '🔲', count: 4 },
+            { id: 'thermal', label: 'COOLING', icon: '❄️', count: 2 },
+            { id: 'ingress', label: 'INGRESS', icon: '📶', count: 2 },
+            { id: 'interconnect', label: 'FIBER', icon: '⚡', count: 1 },
+          ] as const
+        ).map((tab) => {
+          const isSelected = activeSubTab === tab.id;
           return (
-            <Circle
-              key={p.id}
-              cx={x}
-              cy={y}
-              r={p.type === 'dropped' ? 4.5 : 3.5}
-              fill={PACKET_COLORS[p.type]}
-            />
+            <TouchableOpacity
+              key={tab.id}
+              onPress={() => onSelectSubTab(tab.id)}
+              style={[styles.subTabButton, isSelected && styles.subTabActive]}
+            >
+              <Text
+                style={[styles.subTabText, isSelected && styles.subTabTextActive]}
+              >
+                {tab.icon} {tab.label}
+              </Text>
+              <View
+                style={[styles.subTabBadge, isSelected && styles.subTabBadgeActive]}
+              >
+                <Text style={styles.subTabBadgeText}>{tab.count}</Text>
+              </View>
+            </TouchableOpacity>
           );
         })}
-
-        {/* TOP ROW: DATA & STORAGE TIER */}
-        {/* Redis Cache Sled */}
-        <Rect
-          x="26"
-          y="20"
-          width="100"
-          height="34"
-          rx="6"
-          fill="#0F172A"
-          stroke={hasRedis ? '#34D399' : '#1E293B'}
-          strokeWidth="1.5"
-        />
-        <SvgText x="76" y="35" fill={hasRedis ? '#34D399' : '#475569'} fontSize="9" fontWeight="900" textAnchor="middle">
-          REDIS CACHE
-        </SvgText>
-        <SvgText x="76" y="47" fill="#94A3B8" fontSize="8" textAnchor="middle">
-          {hasRedis ? `LV ${infraLevels['redis_cluster']} • <1ms` : 'OFFLINE'}
-        </SvgText>
-
-        {/* Primary SQL Database */}
-        <Rect
-          x="140"
-          y="20"
-          width="100"
-          height="34"
-          rx="6"
-          fill="#0F172A"
-          stroke={isOverloaded ? '#F43F5E' : '#38BDF8'}
-          strokeWidth="1.5"
-        />
-        <SvgText x="190" y="35" fill="#F8FAFC" fontSize="9" fontWeight="900" textAnchor="middle">
-          SQL DATABASE
-        </SvgText>
-        <SvgText x="190" y="47" fill="#38BDF8" fontSize="8" textAnchor="middle">
-          PRIMARY CLUSTER
-        </SvgText>
-
-        {/* Kafka Event Queue */}
-        <Rect
-          x="254"
-          y="20"
-          width="100"
-          height="34"
-          rx="6"
-          fill="#0F172A"
-          stroke={hasKafka ? '#FBBF24' : '#1E293B'}
-          strokeWidth="1.5"
-        />
-        <SvgText x="304" y="35" fill={hasKafka ? '#FBBF24' : '#475569'} fontSize="9" fontWeight="900" textAnchor="middle">
-          KAFKA QUEUE
-        </SvgText>
-        <SvgText x="304" y="47" fill="#94A3B8" fontSize="8" textAnchor="middle">
-          {hasKafka ? `LV ${infraLevels['kafka_queue']} • STREAM` : 'OFFLINE'}
-        </SvgText>
-
-        {/* MIDDLE ROW: COMPUTE PODS & GPU RACKS */}
-        {/* Kubernetes Cluster Pod Sled */}
-        <Rect
-          x="26"
-          y="70"
-          width="155"
-          height="40"
-          rx="8"
-          fill="#0F172A"
-          stroke={isThermalThrottling ? '#F43F5E' : '#22D3EE'}
-          strokeWidth="1.5"
-        />
-        <SvgText x="103" y="87" fill="#F8FAFC" fontSize="9" fontWeight="900" textAnchor="middle">
-          K8S PODS ({podCount} REPLICAS)
-        </SvgText>
-        <SvgText x="103" y="101" fill={isThermalThrottling ? '#F43F5E' : '#22D3EE'} fontSize="8" textAnchor="middle">
-          {isThermalThrottling ? '⚠ THROTTLED (-35%)' : 'ACTIVE • HEALTHY'}
-        </SvgText>
-
-        {/* GPU Compute Rack */}
-        <Rect
-          x="199"
-          y="70"
-          width="155"
-          height="40"
-          rx="8"
-          fill="#0F172A"
-          stroke={hasGpu ? '#10B981' : '#1E293B'}
-          strokeWidth="1.5"
-        />
-        <SvgText x="276" y="87" fill={hasGpu ? '#10B981' : '#475569'} fontSize="9" fontWeight="900" textAnchor="middle">
-          GPU TENSOR RACK
-        </SvgText>
-        <SvgText x="276" y="101" fill="#94A3B8" fontSize="8" textAnchor="middle">
-          {hasGpu ? `LV ${infraLevels['gpu_rack']} • NVLINK 100%` : 'UNPROVISIONED'}
-        </SvgText>
-
-        {/* EDGE TIER: NGINX LB & CDN */}
-        <Rect
-          x="26"
-          y="126"
-          width="155"
-          height="34"
-          rx="6"
-          fill="#0B1221"
-          stroke={hasLb ? '#22D3EE' : '#1E293B'}
-          strokeWidth="1.5"
-        />
-        <SvgText x="103" y="141" fill={hasLb ? '#22D3EE' : '#64748B'} fontSize="9" fontWeight="900" textAnchor="middle">
-          NGINX LOAD BALANCER
-        </SvgText>
-        <SvgText x="103" y="152" fill="#94A3B8" fontSize="8" textAnchor="middle">
-          {hasLb ? `LV ${infraLevels['nginx_lb']} • L7 REVERSE PROXY` : 'LOCKED'}
-        </SvgText>
-
-        <Rect
-          x="199"
-          y="126"
-          width="155"
-          height="34"
-          rx="6"
-          fill="#0B1221"
-          stroke={hasCdn ? '#38BDF8' : '#1E293B'}
-          strokeWidth="1.5"
-        />
-        <SvgText x="276" y="141" fill={hasCdn ? '#38BDF8' : '#64748B'} fontSize="9" fontWeight="900" textAnchor="middle">
-          GLOBAL CDN EDGE
-        </SvgText>
-        <SvgText x="276" y="152" fill="#94A3B8" fontSize="8" textAnchor="middle">
-          {hasCdn ? `LV ${infraLevels['cdn_edge']} • 300+ POPS` : 'LOCKED'}
-        </SvgText>
-
-        {/* BOTTOM INGRESS GATEWAY FUNNEL */}
-        <Path
-          d="M 130 250 L 170 205 L 210 205 L 250 250 Z"
-          fill="#0B132B"
-          stroke="#22D3EE"
-          strokeWidth="1.5"
-        />
-        <SvgText x="190" y="222" fill="#22D3EE" fontSize="10" fontWeight="900" textAnchor="middle">
-          INGRESS GATEWAY
-        </SvgText>
-        <SvgText x="190" y="240" fill="#F8FAFC" fontSize="11" fontWeight="900" textAnchor="middle">
-          USERS: {incomingReqPerSec} REQ/S
-        </SvgText>
-      </Svg>
-
-      {/* Rack Sub-Footer: Thermal Fans & Status Indicator */}
-      <View style={styles.rackFooter}>
-        <View style={styles.fanRow}>
-          <Animated.View style={{ transform: [{ rotate: fanSpin }] }}>
-            <Text style={styles.fanIcon}>⚙️</Text>
-          </Animated.View>
-          <Text style={styles.fanText}>
-            COOLING FANS: {fanCount} UNITS ({isThermalThrottling ? 'HIGH RPM' : 'NOMINAL'})
-          </Text>
-        </View>
-        <View style={styles.loadIndicator}>
-          <View
-            style={[
-              styles.loadDot,
-              { backgroundColor: isOverloaded ? '#F43F5E' : '#10B981' },
-            ]}
-          />
-          <Text
-            style={[
-              styles.loadText,
-              { color: isOverloaded ? '#F43F5E' : '#10B981' },
-            ]}
-          >
-            {isOverloaded ? `DROPPING ${droppedReqPerSec}/S` : `LOAD ${loadPercent}%`}
-          </Text>
-        </View>
       </View>
     </View>
   );
 };
 
 const styles = StyleSheet.create({
-  // --- Phase 1: Build Styles ---
   buildContainer: {
-    flex: 1,
     backgroundColor: '#070B14',
-    paddingHorizontal: 12,
-    paddingTop: 8,
+    borderRadius: 14,
+    borderWidth: 1,
+    borderColor: '#1E293B',
+    padding: 12,
+    marginHorizontal: 12,
+    marginVertical: 6,
   },
   ideHeader: {
     flexDirection: 'row',
-    justifyContent: 'space-between',
     alignItems: 'center',
-    backgroundColor: '#0F172A',
-    borderTopLeftRadius: 12,
-    borderTopRightRadius: 12,
-    paddingHorizontal: 12,
-    paddingVertical: 10,
-    borderWidth: 1,
-    borderColor: '#1E293B',
+    paddingBottom: 8,
+    borderBottomWidth: 1,
+    borderBottomColor: '#1E293B',
+    gap: 8,
   },
-  ideHeaderLeft: {
+  ideDots: {
     flexDirection: 'row',
-    alignItems: 'center',
-    gap: 6,
+    gap: 5,
   },
-  windowDot: {
-    width: 10,
-    height: 10,
-    borderRadius: 5,
+  dot: {
+    width: 9,
+    height: 9,
+    borderRadius: 4.5,
   },
   ideTitle: {
     color: '#94A3B8',
-    fontSize: 11,
-    fontWeight: '800',
-    letterSpacing: 1,
-    marginLeft: 6,
-  },
-  progressPill: {
-    backgroundColor: '#083344',
-    paddingHorizontal: 8,
-    paddingVertical: 4,
-    borderRadius: 6,
-    borderWidth: 1,
-    borderColor: '#22D3EE',
-  },
-  progressText: {
-    color: '#22D3EE',
-    fontSize: 11,
-    fontWeight: '900',
-  },
-  editorTabs: {
-    flexDirection: 'row',
-    backgroundColor: '#0B1221',
-    borderLeftWidth: 1,
-    borderRightWidth: 1,
-    borderColor: '#1E293B',
-  },
-  editorTab: {
-    paddingHorizontal: 14,
-    paddingVertical: 8,
-    borderRightWidth: 1,
-    borderColor: '#1E293B',
-  },
-  editorTabActive: {
-    backgroundColor: '#070B14',
-    borderTopWidth: 2,
-    borderTopColor: '#22D3EE',
-  },
-  editorTabText: {
-    color: '#64748B',
-    fontSize: 11,
+    fontSize: 12,
+    fontFamily: 'monospace',
     fontWeight: '600',
   },
-  editorTabTextActive: {
-    color: '#F8FAFC',
-    fontSize: 11,
-    fontWeight: '800',
-  },
-  codeWindow: {
-    backgroundColor: '#070B14',
-    borderLeftWidth: 1,
-    borderRightWidth: 1,
-    borderBottomWidth: 1,
-    borderColor: '#1E293B',
-    flexDirection: 'row',
-    padding: 12,
-    minHeight: 180,
-    position: 'relative',
-  },
-  lineNumbers: {
-    paddingRight: 12,
-    borderRightWidth: 1,
-    borderColor: '#1E293B',
-    alignItems: 'flex-end',
-  },
-  lineNumberText: {
-    color: '#475569',
-    fontSize: 11,
-    fontFamily: 'monospace',
-    lineHeight: 18,
-  },
-  codeLines: {
-    paddingLeft: 12,
-    flex: 1,
-  },
-  codeLine: {
-    color: '#E2E8F0',
-    fontSize: 11,
-    fontFamily: 'monospace',
-    lineHeight: 18,
-  },
-  dockerOverlayBadge: {
-    position: 'absolute',
-    right: 14,
-    top: 14,
-    backgroundColor: '#083344',
-    borderWidth: 1.5,
-    borderColor: '#22D3EE',
-    paddingHorizontal: 10,
-    paddingVertical: 6,
+  terminalBody: {
+    backgroundColor: '#030712',
+    padding: 10,
     borderRadius: 8,
-  },
-  dockerOverlayText: {
-    color: '#22D3EE',
-    fontSize: 11,
-    fontWeight: '900',
-  },
-  terminalContainer: {
-    backgroundColor: '#040711',
-    borderRadius: 12,
-    borderWidth: 1,
-    borderColor: '#1E293B',
-    marginTop: 10,
-    overflow: 'hidden',
+    marginVertical: 10,
   },
   terminalHeader: {
+    color: '#38BDF8',
+    fontSize: 12,
+    fontFamily: 'monospace',
+    fontWeight: '700',
+    marginBottom: 6,
+  },
+  terminalLine: {
+    color: '#A7F3D0',
+    fontSize: 11,
+    fontFamily: 'monospace',
+    marginVertical: 2,
+  },
+  terminalCursor: {
+    color: '#38BDF8',
+    fontSize: 11,
+    fontFamily: 'monospace',
+    marginTop: 4,
+  },
+  buildFooter: {
+    marginTop: 4,
+  },
+  badgeRow: {
     flexDirection: 'row',
     justifyContent: 'space-between',
-    paddingHorizontal: 12,
-    paddingVertical: 8,
-    backgroundColor: '#0B1221',
-    borderBottomWidth: 1,
-    borderBottomColor: '#1E293B',
-  },
-  terminalHeaderText: {
-    color: '#94A3B8',
-    fontSize: 10,
-    fontWeight: '800',
-    letterSpacing: 0.8,
-  },
-  terminalStatus: {
-    color: '#10B981',
-    fontSize: 10,
-    fontWeight: '800',
-  },
-  terminalContent: {
-    padding: 10,
-    gap: 4,
-  },
-  logText: {
-    color: '#34D399',
-    fontSize: 10,
-    fontFamily: 'monospace',
-  },
-  launchBtn: {
-    backgroundColor: '#10B981',
-    paddingVertical: 14,
-    borderRadius: 12,
     alignItems: 'center',
-    marginTop: 12,
-    shadowColor: '#10B981',
-    shadowOpacity: 0.4,
-    shadowRadius: 10,
-    elevation: 6,
   },
-  launchBtnText: {
-    color: '#042F2E',
-    fontSize: 14,
-    fontWeight: '900',
-    letterSpacing: 1,
+  badgeText: {
+    color: '#E2E8F0',
+    fontSize: 11,
+    fontWeight: '700',
   },
-
-  // --- Phase 2: Live Canvas Styles ---
-  canvasContainer: {
+  badgeStatus: {
+    color: '#10B981',
+    fontSize: 11,
+    fontWeight: '700',
+  },
+  liveContainer: {
     backgroundColor: '#070B14',
     paddingHorizontal: 10,
     paddingTop: 4,
   },
-  telemetryBar: {
+  gaugeCluster: {
     flexDirection: 'row',
     justifyContent: 'space-between',
-    backgroundColor: '#0F172A',
-    borderRadius: 10,
-    paddingHorizontal: 12,
+    backgroundColor: '#0B1221',
+    borderRadius: 12,
     paddingVertical: 8,
-    marginBottom: 6,
+    paddingHorizontal: 6,
     borderWidth: 1,
     borderColor: '#1E293B',
+    marginBottom: 8,
   },
-  telemetryItem: {
+  gaugeBox: {
     alignItems: 'center',
+    flex: 1,
   },
-  telemetryLabel: {
+  gaugeLabel: {
     color: '#64748B',
     fontSize: 9,
     fontWeight: '800',
     letterSpacing: 0.5,
+    marginBottom: 2,
   },
-  telemetryValue: {
+  gaugeValue: {
     color: '#F8FAFC',
     fontSize: 12,
-    fontWeight: '900',
-    marginTop: 2,
+    fontWeight: '800',
+    fontFamily: 'monospace',
+    marginTop: -4,
   },
-  rackFooter: {
+  gaugeSubtext: {
+    color: '#94A3B8',
+    fontSize: 9,
+    fontWeight: '700',
+    fontFamily: 'monospace',
+  },
+  centerScoreText: {
+    color: '#38BDF8',
+    fontSize: 18,
+    fontWeight: '900',
+    fontFamily: 'monospace',
+    marginTop: 6,
+  },
+  dynoScoreText: {
+    color: '#F59E0B',
+    fontSize: 15,
+    fontWeight: '900',
+    fontFamily: 'monospace',
+    marginTop: 6,
+  },
+  rackChassis: {
+    backgroundColor: '#0B132B',
+    borderRadius: 12,
+    borderWidth: 1.5,
+    borderColor: '#1E293B',
+    padding: 10,
+    position: 'relative',
+  },
+  rackThrottlingGlow: {
+    borderColor: '#EF4444',
+    shadowColor: '#EF4444',
+    shadowOffset: { width: 0, height: 0 },
+    shadowOpacity: 0.8,
+    shadowRadius: 10,
+  },
+  chassisRail: {
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'center',
-    paddingHorizontal: 8,
-    paddingTop: 6,
-    paddingBottom: 4,
+    paddingBottom: 6,
+    borderBottomWidth: 1,
+    borderBottomColor: '#1E293B',
   },
-  fanRow: {
+  ledCluster: {
     flexDirection: 'row',
-    alignItems: 'center',
-    gap: 6,
+    gap: 4,
   },
-  fanIcon: {
-    fontSize: 14,
+  led: {
+    width: 7,
+    height: 7,
+    borderRadius: 3.5,
   },
-  fanText: {
+  chassisLabel: {
     color: '#94A3B8',
     fontSize: 10,
-    fontWeight: '700',
+    fontWeight: '800',
+    letterSpacing: 0.6,
   },
-  loadIndicator: {
+  pduLabel: {
+    color: '#FBBF24',
+    fontSize: 10,
+    fontWeight: '800',
+    fontFamily: 'monospace',
+  },
+  sledRow: {
+    flexDirection: 'row',
+    gap: 6,
+    marginVertical: 8,
+  },
+  sledBox: {
+    flex: 1,
+    backgroundColor: '#111C35',
+    borderRadius: 6,
+    borderWidth: 1,
+    borderColor: '#1E3A8A',
+    paddingVertical: 6,
+    paddingHorizontal: 4,
+    alignItems: 'center',
+  },
+  sledIcon: {
+    fontSize: 14,
+  },
+  sledName: {
+    color: '#E2E8F0',
+    fontSize: 8,
+    fontWeight: '700',
+    marginTop: 2,
+    textAlign: 'center',
+  },
+  sledLvl: {
+    color: '#38BDF8',
+    fontSize: 8,
+    fontWeight: '800',
+    fontFamily: 'monospace',
+  },
+  fanTray: {
     flexDirection: 'row',
     alignItems: 'center',
-    gap: 6,
+    justifyContent: 'space-between',
+    backgroundColor: '#070D1F',
+    borderRadius: 8,
+    paddingVertical: 4,
+    paddingHorizontal: 8,
+    borderWidth: 1,
+    borderColor: '#1E293B',
   },
-  loadDot: {
-    width: 8,
-    height: 8,
-    borderRadius: 4,
+  fanHousing: {
+    alignItems: 'center',
   },
-  loadText: {
-    fontSize: 11,
+  fanSpeed: {
+    color: '#64748B',
+    fontSize: 7,
+    fontWeight: '700',
+    fontFamily: 'monospace',
+    marginTop: 2,
+  },
+  tapPromptBox: {
+    flex: 1,
+    alignItems: 'center',
+  },
+  tapPromptText: {
+    color: '#38BDF8',
+    fontSize: 10,
+    fontWeight: '700',
+    textAlign: 'center',
+  },
+  floatingCash: {
+    position: 'absolute',
+    top: '40%',
+    left: '45%',
+    color: '#10B981',
+    fontSize: 16,
     fontWeight: '900',
+    textShadowColor: 'rgba(0,0,0,0.8)',
+    textShadowOffset: { width: 1, height: 1 },
+    textShadowRadius: 3,
+  },
+  bottleneckAlertBanner: {
+    backgroundColor: '#0F172A',
+    borderRadius: 8,
+    paddingVertical: 5,
+    paddingHorizontal: 8,
+    borderWidth: 1,
+    borderColor: '#334155',
+    marginVertical: 6,
+    alignItems: 'center',
+  },
+  bottleneckThermal: {
+    backgroundColor: 'rgba(239, 68, 68, 0.15)',
+    borderColor: '#EF4444',
+  },
+  bottleneckIngress: {
+    backgroundColor: 'rgba(245, 158, 11, 0.15)',
+    borderColor: '#F59E0B',
+  },
+  bottleneckAlertText: {
+    color: '#F8FAFC',
+    fontSize: 10,
+    fontWeight: '800',
+    letterSpacing: 0.3,
+  },
+  subTabRow: {
+    flexDirection: 'row',
+    gap: 6,
+    marginBottom: 6,
+  },
+  subTabButton: {
+    flex: 1,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    backgroundColor: '#0B1221',
+    borderRadius: 8,
+    borderWidth: 1,
+    borderColor: '#1E293B',
+    paddingVertical: 6,
+    paddingHorizontal: 4,
+    gap: 4,
+  },
+  subTabActive: {
+    backgroundColor: '#1E293B',
+    borderColor: '#38BDF8',
+  },
+  subTabText: {
+    color: '#64748B',
+    fontSize: 10,
+    fontWeight: '800',
+  },
+  subTabTextActive: {
+    color: '#38BDF8',
+  },
+  subTabBadge: {
+    backgroundColor: '#1E293B',
+    borderRadius: 6,
+    paddingHorizontal: 4,
+    paddingVertical: 1,
+  },
+  subTabBadgeActive: {
+    backgroundColor: '#0284C7',
+  },
+  subTabBadgeText: {
+    color: '#FFFFFF',
+    fontSize: 8,
+    fontWeight: '800',
   },
 });

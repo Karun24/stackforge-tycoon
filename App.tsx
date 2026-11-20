@@ -1,5 +1,6 @@
 import React from 'react';
 import {
+  ScrollView,
   StyleSheet,
   Text,
   TouchableOpacity,
@@ -8,10 +9,15 @@ import {
 import { StatusBar } from 'expo-status-bar';
 import { SafeAreaProvider, SafeAreaView } from 'react-native-safe-area-context';
 import { ArchitectureCanvas } from './src/components/ArchitectureCanvas';
+import { BenchmarkRaceScreen } from './src/components/BenchmarkRaceScreen';
 import { BottomDeck } from './src/components/BottomDeck';
 import { ClientRoadmap } from './src/components/ClientRoadmap';
 import { CrewCards } from './src/components/CrewCards';
+import { DeployPhaseModal } from './src/components/DeployPhaseModal';
+import { DynoTuneScreen } from './src/components/DynoTuneScreen';
+import { GlobalRegionMap } from './src/components/GlobalRegionMap';
 import { LabScreen } from './src/components/LabScreen';
+import { MarketingScreen } from './src/components/MarketingScreen';
 import { OnboardingModal } from './src/components/OnboardingModal';
 import { ShopScreen } from './src/components/ShopScreen';
 import { useGameEngine } from './src/engine/useGameEngine';
@@ -27,13 +33,17 @@ export default function App() {
       ? `${(game.cash / 1000).toFixed(1)}K`
       : game.cash.toFixed(0);
 
-  // Bottom Navigation tabs (Matching Screenshots 1, 2, 3, 4, 5)
+  // Bottom Navigation tabs (Matching Screenshots 1, 6, 7, 10, 11)
   const navTabs: { id: NavigationTab; label: string; icon: string }[] = [
-    { id: 'shop', label: 'SHOP', icon: '🛍️' },
-    { id: 'clients', label: 'CLIENTS', icon: '📶' },
     { id: 'rig', label: 'RIG', icon: '🔲' },
+    { id: 'regions', label: 'REGIONS', icon: '🌐' },
+    { id: 'dyno', label: 'DYNO', icon: '🎛️' },
+    { id: 'race', label: 'RACE', icon: '🏁' },
     { id: 'lab', label: 'LAB', icon: '🧪' },
-    { id: 'cards', label: 'CARDS', icon: '🎴' },
+    { id: 'cards', label: 'CRATES', icon: '🎁' },
+    { id: 'marketing', label: 'GROWTH', icon: '📢' },
+    { id: 'clients', label: 'CLIENTS', icon: '📶' },
+    { id: 'shop', label: 'SHOP', icon: '🛍️' },
   ];
 
   return (
@@ -41,11 +51,37 @@ export default function App() {
       <SafeAreaView style={styles.safeArea}>
         <StatusBar style="light" />
 
-        {game.phase === 'onboarding' ? (
+        {/* Phase 0: Onboarding */}
+        {game.phase === 'onboarding' && (
           <OnboardingModal onStart={game.startGame} />
-        ) : (
+        )}
+
+        {/* Phase 2: Production Deploy Pipeline */}
+        {game.phase === 'deploy' && (
+          <DeployPhaseModal
+            product={game.product}
+            deploySteps={game.deploySteps}
+            currentStepIndex={game.deployStepIndex}
+            onAdvanceStep={game.advanceDeployStep}
+          />
+        )}
+
+        {/* Phase 3: Launch Marketing Blitz */}
+        {game.phase === 'launch_marketing' && (
+          <MarketingScreen
+            product={game.product}
+            campaigns={game.activeCampaigns}
+            cash={game.cash}
+            onLaunchCampaign={game.launchCampaign}
+            onFinishLaunchMarketing={game.finishLaunchMarketing}
+            isInitialLaunchMode={true}
+          />
+        )}
+
+        {/* Phase 1: Build OR Phase 4: Live Operations */}
+        {(game.phase === 'build' || game.phase === 'live') && (
           <View style={styles.container}>
-            {/* TOP STATUS BAR (Matching Screenshots 1-5) */}
+            {/* TOP STATUS BAR (Matching Screenshots 1-13) */}
             <View style={styles.topBar}>
               <View style={styles.topBarLeft}>
                 <View style={styles.levelBadge}>
@@ -59,7 +95,7 @@ export default function App() {
               </View>
 
               <View style={styles.topBarCenter}>
-                <Text style={styles.centerTitle}>
+                <Text style={styles.centerTitle} numberOfLines={1}>
                   {game.phase === 'build'
                     ? 'DEV WORKSPACE'
                     : `RIG-01 // ${game.product.name.toUpperCase()}`}
@@ -83,7 +119,7 @@ export default function App() {
             {game.phase === 'live' && (
               <View style={styles.billingRibbon}>
                 <Text style={styles.billingItem}>
-                  BILLING: <Text style={styles.billingHighlight}>${game.product.revenuePerReq}/REQ</Text>
+                  BILLING: <Text style={styles.billingHighlight}>${game.revenuePerReq}/REQ</Text>
                 </Text>
                 <Text style={styles.billingItem}>
                   BURN: <Text style={styles.burnHighlight}>-${game.burnPerSec}/S</Text>
@@ -91,109 +127,146 @@ export default function App() {
                 <Text style={styles.billingItem}>
                   USERS: <Text style={styles.usersHighlight}>{game.incomingReqPerSec} REQ/S</Text>
                 </Text>
+                <Text style={styles.billingItem}>
+                  KEYS: <Text style={styles.keysHighlight}>🗝️{game.bronzeKeys} 🟣{game.purpleKeys}</Text>
+                </Text>
               </View>
             )}
 
             {/* CHAOS ALERT BANNER */}
             {game.activeChaos && (
               <View style={styles.chaosBanner}>
-                <Text style={styles.chaosTitle}>
-                  ⚡ {game.activeChaos.title} ({game.chaosTimer}s)
+                <Text style={styles.chaosTitle}>{game.activeChaos.title}</Text>
+                <Text style={styles.chaosDesc}>
+                  {game.activeChaos.description} ({game.chaosTimer}s left)
                 </Text>
-                <Text style={styles.chaosDesc}>{game.activeChaos.description}</Text>
               </View>
             )}
 
             {/* MAIN CONTENT AREA */}
-            <View style={styles.mainContent}>
+            <View style={styles.contentArea}>
               {game.phase === 'build' ? (
-                <View style={styles.buildLayout}>
+                <>
                   <ArchitectureCanvas
                     phase={game.phase}
                     mode={game.mode}
                     product={game.product}
-                    buildProgress={game.buildProgress}
-                    canPublish={game.canPublish}
+                    buildProgress={Math.round(
+                      (game.installedBuildIds.length / game.buildModules.length) * 100
+                    )}
                     installedBuildIds={game.installedBuildIds}
                     terminalLogs={game.terminalLogs}
                     infraLevels={game.infraLevels}
-                    temperature={game.temperature}
-                    isThermalThrottling={game.isThermalThrottling}
-                    powerKw={game.powerKw}
-                    incomingReqPerSec={game.incomingReqPerSec}
-                    totalCapacity={game.totalCapacity}
-                    droppedReqPerSec={game.droppedReqPerSec}
-                    loadPercent={game.loadPercent}
-                    activeBottleneck={game.activeBottleneck}
-                    packets={game.packets}
-                    onPublish={game.publishProduct}
+                    temperature={game.currentTempC}
+                    isThermalThrottling={game.isThrottling}
+                    powerKw={4.8}
+                    incomingReqPerSec={0}
+                    totalCapacity={game.baseCapacity}
+                    activeBottleneck="OPTIMAL"
+                    packets={[]}
+                    activeSubTab={game.rigSubTab}
+                    onSelectSubTab={game.setRigSubTab}
+                    onRev={() => {}}
+                    floatingCashList={[]}
+                    dynoScore={game.dynoScore}
                   />
-
                   <BottomDeck
                     phase={game.phase}
                     mode={game.mode}
                     rigSubTab={game.rigSubTab}
                     setRigSubTab={game.setRigSubTab}
                     cash={game.cash}
+                    buildModules={game.buildModules}
                     installedBuildIds={game.installedBuildIds}
                     infraLevels={game.infraLevels}
-                    activeBottleneck={game.activeBottleneck}
+                    activeBottleneck={game.currentBottleneck}
                     onInstallBuild={game.installBuildModule}
-                    getInfraCost={game.getInfraCost}
                     onUpgradeInfra={game.upgradeInfra}
                   />
-                </View>
+                </>
               ) : (
                 <>
-                  {/* PHASE 2 SCREEN ROUTING */}
                   {game.activeTab === 'rig' && (
-                    <View style={styles.rigLayout}>
+                    <>
                       <ArchitectureCanvas
                         phase={game.phase}
                         mode={game.mode}
                         product={game.product}
-                        buildProgress={game.buildProgress}
-                        canPublish={game.canPublish}
+                        buildProgress={100}
                         installedBuildIds={game.installedBuildIds}
                         terminalLogs={game.terminalLogs}
                         infraLevels={game.infraLevels}
-                        temperature={game.temperature}
-                        isThermalThrottling={game.isThermalThrottling}
-                        powerKw={game.powerKw}
+                        temperature={game.currentTempC}
+                        isThermalThrottling={game.isThrottling}
+                        powerKw={4.8}
                         incomingReqPerSec={game.incomingReqPerSec}
-                        totalCapacity={game.totalCapacity}
-                        droppedReqPerSec={game.droppedReqPerSec}
-                        loadPercent={game.loadPercent}
-                        activeBottleneck={game.activeBottleneck}
+                        totalCapacity={game.baseCapacity}
+                        activeBottleneck={game.currentBottleneck}
                         packets={game.packets}
-                        onPublish={game.publishProduct}
+                        activeSubTab={game.rigSubTab}
+                        onSelectSubTab={game.setRigSubTab}
+                        onRev={game.revEngine}
+                        floatingCashList={game.floatingCashList}
+                        dynoScore={game.dynoScore}
                       />
-
                       <BottomDeck
                         phase={game.phase}
                         mode={game.mode}
                         rigSubTab={game.rigSubTab}
                         setRigSubTab={game.setRigSubTab}
                         cash={game.cash}
+                        buildModules={game.buildModules}
                         installedBuildIds={game.installedBuildIds}
                         infraLevels={game.infraLevels}
-                        activeBottleneck={game.activeBottleneck}
+                        activeBottleneck={game.currentBottleneck}
                         onInstallBuild={game.installBuildModule}
-                        getInfraCost={game.getInfraCost}
                         onUpgradeInfra={game.upgradeInfra}
                       />
-                    </View>
+                    </>
                   )}
 
-                  {game.activeTab === 'clients' && (
-                    <ClientRoadmap
-                      jobs={game.clientJobs}
-                      currentJob={game.currentJob}
-                      currentProgress={game.currentJobProgress}
+                  {game.activeTab === 'regions' && (
+                    <GlobalRegionMap
+                      regions={game.regions}
+                      cash={game.cash}
+                      onUnlockRegion={game.unlockRegion}
+                    />
+                  )}
+
+                  {game.activeTab === 'dyno' && (
+                    <DynoTuneScreen
+                      tuningRatio={game.tuningRatio}
+                      onSetTuningRatio={game.setTuningRatio}
+                      tuningAccuracy={game.tuningAccuracy}
+                      autoTuneActive={game.autoTuneActive}
+                      onTriggerAutoTune={game.triggerAutoTune}
+                      dynoScore={game.dynoScore}
+                      totalCapacity={game.baseCapacity}
+                      unlockedLabIds={game.unlockedLabIds}
+                    />
+                  )}
+
+                  {game.activeTab === 'race' && (
+                    <BenchmarkRaceScreen
+                      rivals={game.rivals}
+                      currentRivalIndex={game.currentRivalIndex}
+                      dynoScore={game.dynoScore}
+                      raceTries={game.raceTries}
+                      isRacing={game.isRacing}
+                      raceProgress={game.raceProgress}
+                      onRunBenchmark={game.runBenchmark}
+                      productName={game.product.name}
+                    />
+                  )}
+
+                  {game.activeTab === 'lab' && (
+                    <LabScreen
+                      labBenches={game.labBenches}
+                      unlockedLabIds={game.unlockedLabIds}
+                      cash={game.cash}
                       gems={game.gems}
-                      incomingReqPerSec={game.incomingReqPerSec}
-                      onSelectJob={game.selectClientJob}
-                      onSpeedUp={game.speedUpJob}
+                      onStartResearch={game.startResearch}
+                      onUnlockBench={game.unlockLabBench}
                     />
                   )}
 
@@ -201,16 +274,37 @@ export default function App() {
                     <CrewCards
                       hiredCrewIds={game.hiredCrewIds}
                       cash={game.cash}
-                      onHireCrew={game.hireCrew}
+                      gems={game.gems}
+                      bronzeKeys={game.bronzeKeys}
+                      purpleKeys={game.purpleKeys}
+                      goldKeys={game.goldKeys}
+                      dailyGiftClaimed={game.dailyGiftClaimed}
+                      onClaimDailyGift={game.claimDailyGift}
+                      onOpenChest={game.openChest}
                     />
                   )}
 
-                  {game.activeTab === 'lab' && (
-                    <LabScreen
-                      mode={game.mode}
-                      unlockedLabIds={game.unlockedLabIds}
+                  {game.activeTab === 'marketing' && (
+                    <MarketingScreen
+                      product={game.product}
+                      campaigns={game.activeCampaigns}
                       cash={game.cash}
-                      onUnlockLab={game.unlockLab}
+                      onLaunchCampaign={game.launchCampaign}
+                    />
+                  )}
+
+                  {game.activeTab === 'clients' && (
+                    <ClientRoadmap
+                      jobs={game.clientJobs}
+                      currentJob={
+                        game.clientJobs.find((j) => j.id === game.currentJobId) ||
+                        game.clientJobs[0]
+                      }
+                      currentProgress={game.currentJobProgress}
+                      gems={game.gems}
+                      incomingReqPerSec={game.effectiveReqPerSec}
+                      onSelectJob={() => {}}
+                      onSpeedUp={() => {}}
                     />
                   )}
 
@@ -218,33 +312,46 @@ export default function App() {
                     <ShopScreen
                       cash={game.cash}
                       gems={game.gems}
-                      onClaimGrant={(amt) => game.startGame(game.mode, game.product.id, 'golang', 'postgres')} // re-grant
-                      onTradeGems={(gAmt, cReward) => {}}
+                      onClaimGrant={(amount: number) => {}}
+                      onTradeGems={(gemsAmount: number, cashReward: number) => {}}
                     />
                   )}
                 </>
               )}
             </View>
 
-            {/* BOTTOM 5-TAB BAR (Matching Screenshots 1-5) */}
+            {/* BOTTOM NAVIGATION TAB BAR (Screenshot 1-13) */}
             {game.phase === 'live' && (
-              <View style={styles.bottomNav}>
-                {navTabs.map((t) => {
-                  const active = game.activeTab === t.id;
-                  return (
-                    <TouchableOpacity
-                      key={t.id}
-                      style={[styles.navBtn, active && styles.navBtnActive]}
-                      onPress={() => game.setActiveTab(t.id)}
-                    >
-                      <Text style={styles.navIcon}>{t.icon}</Text>
-                      <Text style={[styles.navText, active && styles.navTextActive]}>
-                        {t.label}
-                      </Text>
-                      {active && <View style={styles.navActiveIndicator} />}
-                    </TouchableOpacity>
-                  );
-                })}
+              <View style={styles.bottomNavWrapper}>
+                <ScrollView
+                  horizontal
+                  showsHorizontalScrollIndicator={false}
+                  contentContainerStyle={styles.bottomNavScroll}
+                >
+                  {navTabs.map((tab) => {
+                    const isSelected = game.activeTab === tab.id;
+                    return (
+                      <TouchableOpacity
+                        key={tab.id}
+                        onPress={() => game.setActiveTab(tab.id)}
+                        style={[
+                          styles.navTabButton,
+                          isSelected && styles.navTabButtonActive,
+                        ]}
+                      >
+                        <Text style={styles.navTabIcon}>{tab.icon}</Text>
+                        <Text
+                          style={[
+                            styles.navTabLabel,
+                            isSelected && styles.navTabLabelActive,
+                          ]}
+                        >
+                          {tab.label}
+                        </Text>
+                      </TouchableOpacity>
+                    );
+                  })}
+                </ScrollView>
               </View>
             )}
           </View>
@@ -267,179 +374,169 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'center',
-    paddingHorizontal: 12,
-    paddingVertical: 8,
+    paddingHorizontal: 10,
+    paddingVertical: 6,
     backgroundColor: '#070B14',
     borderBottomWidth: 1,
     borderBottomColor: '#1E293B',
   },
   topBarLeft: {
     flexDirection: 'row',
-    alignItems: 'center',
     gap: 6,
   },
   levelBadge: {
-    backgroundColor: '#0F172A',
-    borderWidth: 1,
-    borderColor: '#334155',
-    paddingHorizontal: 8,
-    paddingVertical: 4,
+    backgroundColor: '#1E293B',
+    paddingHorizontal: 6,
+    paddingVertical: 3,
     borderRadius: 6,
   },
   levelText: {
-    color: '#94A3B8',
+    color: '#38BDF8',
     fontSize: 10,
-    fontWeight: '900',
+    fontWeight: '800',
+    fontFamily: 'monospace',
   },
   modeBadge: {
-    backgroundColor: '#083344',
-    borderWidth: 1,
-    borderColor: '#22D3EE',
+    backgroundColor: '#1E293B',
     paddingHorizontal: 6,
-    paddingVertical: 4,
+    paddingVertical: 3,
     borderRadius: 6,
   },
   modeText: {
-    color: '#22D3EE',
+    color: '#FBBF24',
     fontSize: 10,
-    fontWeight: '900',
+    fontWeight: '800',
   },
   topBarCenter: {
     alignItems: 'center',
+    flex: 1,
+    paddingHorizontal: 4,
   },
   centerTitle: {
     color: '#F8FAFC',
     fontSize: 11,
-    fontWeight: '900',
-    letterSpacing: 0.8,
+    fontWeight: '800',
+    letterSpacing: 0.5,
   },
   centerNetIncome: {
     color: '#10B981',
-    fontSize: 13,
-    fontWeight: '900',
-    marginTop: 1,
+    fontSize: 11,
+    fontWeight: '800',
+    fontFamily: 'monospace',
   },
   topBarRight: {
     flexDirection: 'row',
-    alignItems: 'center',
     gap: 6,
   },
   cashPill: {
-    backgroundColor: '#062822',
-    borderWidth: 1,
-    borderColor: '#10B981',
+    backgroundColor: '#064E3B',
     paddingHorizontal: 8,
-    paddingVertical: 4,
+    paddingVertical: 3,
     borderRadius: 6,
   },
   cashPillText: {
-    color: '#10B981',
+    color: '#34D399',
     fontSize: 11,
     fontWeight: '900',
+    fontFamily: 'monospace',
   },
   gemPill: {
-    backgroundColor: '#082F49',
-    borderWidth: 1,
-    borderColor: '#38BDF8',
-    paddingHorizontal: 6,
-    paddingVertical: 4,
+    backgroundColor: '#4C1D95',
+    paddingHorizontal: 8,
+    paddingVertical: 3,
     borderRadius: 6,
   },
   gemPillText: {
-    color: '#38BDF8',
+    color: '#C084FC',
     fontSize: 11,
     fontWeight: '900',
   },
   billingRibbon: {
     flexDirection: 'row',
     justifyContent: 'space-between',
-    backgroundColor: '#0B132B',
-    paddingHorizontal: 14,
-    paddingVertical: 5,
+    backgroundColor: '#0B1221',
+    paddingHorizontal: 10,
+    paddingVertical: 4,
     borderBottomWidth: 1,
     borderBottomColor: '#1E293B',
   },
   billingItem: {
     color: '#64748B',
-    fontSize: 10,
+    fontSize: 9,
     fontWeight: '800',
+    letterSpacing: 0.4,
   },
   billingHighlight: {
-    color: '#F8FAFC',
+    color: '#38BDF8',
+    fontFamily: 'monospace',
   },
   burnHighlight: {
-    color: '#F43F5E',
+    color: '#F87171',
+    fontFamily: 'monospace',
   },
   usersHighlight: {
-    color: '#22D3EE',
+    color: '#34D399',
+    fontFamily: 'monospace',
+  },
+  keysHighlight: {
+    color: '#FBBF24',
+    fontFamily: 'monospace',
   },
   chaosBanner: {
-    backgroundColor: '#450A0A',
-    borderWidth: 1,
-    borderColor: '#F43F5E',
-    marginHorizontal: 12,
-    marginTop: 6,
-    padding: 8,
-    borderRadius: 8,
+    backgroundColor: '#7F1D1D',
+    paddingVertical: 4,
+    paddingHorizontal: 10,
+    borderBottomWidth: 1,
+    borderBottomColor: '#EF4444',
   },
   chaosTitle: {
-    color: '#FDA4AF',
-    fontSize: 11,
+    color: '#FECACA',
+    fontSize: 10,
     fontWeight: '900',
-  },
-  chaosDesc: {
-    color: '#FECDD3',
-    fontSize: 10,
-    marginTop: 2,
-  },
-  mainContent: {
-    flex: 1,
-  },
-  buildLayout: {
-    flex: 1,
-  },
-  rigLayout: {
-    flex: 1,
-  },
-
-  // Bottom 5-Tab Bar
-  bottomNav: {
-    flexDirection: 'row',
-    backgroundColor: '#070B14',
-    borderTopWidth: 1.5,
-    borderTopColor: '#1E293B',
-    paddingVertical: 6,
-    paddingHorizontal: 4,
-  },
-  navBtn: {
-    flex: 1,
-    alignItems: 'center',
-    paddingVertical: 4,
-    position: 'relative',
-  },
-  navBtnActive: {
-    opacity: 1,
-  },
-  navIcon: {
-    fontSize: 18,
-    marginBottom: 2,
-  },
-  navText: {
-    color: '#64748B',
-    fontSize: 10,
-    fontWeight: '800',
     letterSpacing: 0.5,
   },
-  navTextActive: {
-    color: '#22D3EE',
-    fontWeight: '900',
+  chaosDesc: {
+    color: '#FCA5A5',
+    fontSize: 9,
   },
-  navActiveIndicator: {
-    position: 'absolute',
-    bottom: -6,
-    width: 20,
-    height: 3,
-    backgroundColor: '#22D3EE',
-    borderRadius: 1.5,
+  contentArea: {
+    flex: 1,
+  },
+  bottomNavWrapper: {
+    backgroundColor: '#070B14',
+    borderTopWidth: 1,
+    borderTopColor: '#1E293B',
+    paddingVertical: 4,
+  },
+  bottomNavScroll: {
+    paddingHorizontal: 6,
+    gap: 6,
+    flexDirection: 'row',
+  },
+  navTabButton: {
+    alignItems: 'center',
+    justifyContent: 'center',
+    paddingVertical: 5,
+    paddingHorizontal: 12,
+    borderRadius: 8,
+    minWidth: 62,
+  },
+  navTabButtonActive: {
+    backgroundColor: '#1E293B',
+    borderWidth: 1,
+    borderColor: '#38BDF8',
+  },
+  navTabIcon: {
+    fontSize: 16,
+    marginBottom: 2,
+  },
+  navTabLabel: {
+    color: '#64748B',
+    fontSize: 9,
+    fontWeight: '800',
+    letterSpacing: 0.4,
+  },
+  navTabLabelActive: {
+    color: '#38BDF8',
   },
 });

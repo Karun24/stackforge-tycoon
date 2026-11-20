@@ -1,10 +1,19 @@
 export type PlayerMode = 'explorer' | 'developer';
 
-export type GamePhase = 'onboarding' | 'build' | 'live';
+export type GamePhase = 'onboarding' | 'build' | 'deploy' | 'launch_marketing' | 'live';
 
-export type ProductId = 'ecommerce' | 'social' | 'ai_saas' | 'mobile_game';
+export type ProductId = 'ecommerce' | 'mobile_game' | 'social' | 'ai_saas';
 
-export type NavigationTab = 'rig' | 'clients' | 'cards' | 'lab' | 'shop';
+export type NavigationTab = 
+  | 'rig' 
+  | 'regions' 
+  | 'dyno' 
+  | 'race' 
+  | 'clients' 
+  | 'lab' 
+  | 'cards' 
+  | 'marketing' 
+  | 'shop';
 
 export type RigSubTab = 'compute' | 'thermal' | 'ingress' | 'interconnect';
 
@@ -17,11 +26,12 @@ export interface ProductTemplate {
   baseTraffic: number;
   color: string;
   recommendedStack: string;
+  marketingFocus: string;
 }
 
 export interface TechStackOption {
   id: string;
-  category: 'backend' | 'database';
+  category: 'backend' | 'database' | 'engine' | 'queue';
   name: string;
   tag: string;
   desc: string;
@@ -42,6 +52,14 @@ export interface BuildModule {
   requiredForLaunch: boolean;
 }
 
+export interface DeployStep {
+  id: string;
+  title: string;
+  subtitle: string;
+  terminalCommand: string;
+  done: boolean;
+}
+
 export interface InfraNode {
   id: string;
   name: string;
@@ -57,6 +75,21 @@ export interface InfraNode {
   explorerDesc: string;
   devDesc: string;
   solvesBottleneck: string;
+}
+
+export interface GlobalRegion {
+  id: string;
+  name: string;
+  code: string;
+  x: number; // 0 to 100 percentage
+  y: number; // 0 to 100 percentage
+  unlocked: boolean;
+  unlockCost: number;
+  latencyMs: number;
+  rpsCapacity: number;
+  incomeBonus: number;
+  contractsRequired: number;
+  description: string;
 }
 
 export interface ClientJob {
@@ -75,10 +108,27 @@ export interface ClientJob {
   completed: boolean;
 }
 
+export interface BenchmarkRival {
+  id: string;
+  league: string;
+  stage: number;
+  name: string;
+  appType: string;
+  score: number;
+  quote: string;
+  avatarIcon: string;
+  rewardCash: number;
+  rewardGems: number;
+  rewardKey: 'bronze' | 'purple' | 'gold';
+  defeated: boolean;
+}
+
 export interface CrewMember {
   id: string;
   name: string;
   role: string;
+  rarity: 'COMMON' | 'RARE' | 'EPIC' | 'LEGENDARY';
+  stars: number;
   category: 'COMPUTE' | 'COOLING' | 'INGRESS' | 'FINOPS';
   cost: number;
   level: number;
@@ -89,15 +139,49 @@ export interface CrewMember {
   avatarIcon: string;
 }
 
+export interface LabBench {
+  id: number;
+  name: string;
+  unlocked: boolean;
+  unlockCostGems: number;
+  activeUpgradeId: string | null;
+  remainingSeconds: number;
+  totalSeconds: number;
+}
+
 export interface LabUpgrade {
   id: string;
   title: string;
-  category: 'EFFICIENCY' | 'NETWORK' | 'DATABASE' | 'KERNEL';
+  category: 'NETWORK' | 'DATABASE' | 'COMPUTE' | 'SECURITY' | 'AI';
   cost: number;
+  durationSeconds: number;
   bonusText: string;
   explorerDesc: string;
   devDesc: string;
   unlocked: boolean;
+  prerequisiteId?: string;
+}
+
+export interface MarketingCampaign {
+  id: string;
+  name: string;
+  channel: string;
+  cost: number;
+  durationSec: number;
+  active: boolean;
+  trafficMultiplier: number;
+  viralBonus: number;
+  icon: string;
+  desc: string;
+}
+
+export interface ChestBox {
+  id: 'daily' | 'basic' | 'premium';
+  name: string;
+  keyType: 'free' | 'bronze' | 'purple';
+  guaranteedRarity: string;
+  openCount: number;
+  color: string;
 }
 
 export interface ChaosEvent {

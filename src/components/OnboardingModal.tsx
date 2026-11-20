@@ -7,9 +7,8 @@ import {
   View,
 } from 'react-native';
 import {
-  BACKEND_STACKS,
-  DATABASE_STACKS,
   PRODUCTS,
+  TECH_STACKS_BY_PRODUCT,
 } from '../data/gameData';
 import { PlayerMode, ProductId } from '../types/game';
 
@@ -17,23 +16,34 @@ interface Props {
   onStart: (
     mode: PlayerMode,
     productId: ProductId,
-    backendId: string,
-    databaseId: string
+    stackId: string
   ) => void;
 }
 
 export const OnboardingModal: React.FC<Props> = ({ onStart }) => {
   const [selectedMode, setSelectedMode] = useState<PlayerMode>('explorer');
   const [selectedProduct, setSelectedProduct] = useState<ProductId>('ecommerce');
-  const [selectedBackend, setSelectedBackend] = useState<string>('golang');
-  const [selectedDb, setSelectedDb] = useState<string>('postgres');
+  const [selectedStackId, setSelectedStackId] = useState<string>('go_postgres');
+
+  const availableStacks = TECH_STACKS_BY_PRODUCT[selectedProduct] || [];
+
+  const handleSelectProduct = (prodId: ProductId) => {
+    setSelectedProduct(prodId);
+    const newStacks = TECH_STACKS_BY_PRODUCT[prodId] || [];
+    if (newStacks.length > 0) {
+      setSelectedStackId(newStacks[0].id);
+    }
+  };
 
   return (
-    <ScrollView contentContainerStyle={styles.container} showsVerticalScrollIndicator={false}>
-      <Text style={styles.badge}>STACKFORGE // ARCHITECT & BUILD</Text>
-      <Text style={styles.title}>Product & System Design Tycoon</Text>
+    <ScrollView
+      contentContainerStyle={styles.container}
+      showsVerticalScrollIndicator={false}
+    >
+      <Text style={styles.badge}>STACKFORGE // PRODUCT & HARDWARE TYCOON</Text>
+      <Text style={styles.title}>System Design & Architecture Tycoon</Text>
       <Text style={styles.subtitle}>
-        Write code, containerize with Docker, deploy to public cloud, and scale your servers to millions of requests without melting your hardware.
+        Build your dream app or 3D game, compile milestones in the terminal, pass app store reviews, launch viral marketing campaigns, and scale global server racks!
       </Text>
 
       {/* 1. Mode Selection */}
@@ -47,9 +57,10 @@ export const OnboardingModal: React.FC<Props> = ({ onStart }) => {
           onPress={() => setSelectedMode('explorer')}
         >
           <Text style={styles.modeIcon}>🧭</Text>
-          <Text style={styles.cardTitle}>Explorer Mode</Text>
+          <Text style={styles.cardTitle}>Explorer</Text>
+          <Text style={styles.cardRole}>NORMAL PERSON</Text>
           <Text style={styles.cardDesc}>
-            Plain-English guides explaining why you need Docker, Redis, or Load Balancers.
+            Plain-English guides explaining what Docker, Redis, and GPU clusters actually do.
           </Text>
         </TouchableOpacity>
 
@@ -61,91 +72,91 @@ export const OnboardingModal: React.FC<Props> = ({ onStart }) => {
           onPress={() => setSelectedMode('developer')}
         >
           <Text style={styles.modeIcon}>💻</Text>
-          <Text style={styles.cardTitle}>Developer Mode</Text>
+          <Text style={styles.cardTitle}>Architect</Text>
+          <Text style={styles.cardRole}>SOFTWARE ENGINEER</Text>
           <Text style={styles.cardDesc}>
-            Real engineering specs: HPA, P99 latency, L7 reverse proxies, and zero hand-holding.
+            Deep technical specs: OpenAPI schemas, eBPF sockets, FP8 quantization, and PDU kW load.
           </Text>
         </TouchableOpacity>
       </View>
 
-      {/* 2. Product Selection */}
-      <Text style={styles.sectionLabel}>2. CHOOSE YOUR TECH PRODUCT</Text>
+      {/* 2. Product Archetype Selection */}
+      <Text style={styles.sectionLabel}>2. CHOOSE YOUR APPLICATION OR GAME</Text>
       <View style={styles.productGrid}>
-        {PRODUCTS.map((p) => {
-          const active = selectedProduct === p.id;
+        {PRODUCTS.map((prod) => {
+          const isSelected = selectedProduct === prod.id;
           return (
             <TouchableOpacity
-              key={p.id}
+              key={prod.id}
               style={[
                 styles.productCard,
-                active && { borderColor: p.color, backgroundColor: '#0B172B' },
+                isSelected && { borderColor: prod.color, backgroundColor: '#0F1A30' },
               ]}
-              onPress={() => setSelectedProduct(p.id)}
+              onPress={() => handleSelectProduct(prod.id)}
             >
-              <Text style={styles.productIcon}>{p.icon}</Text>
-              <Text style={styles.productName}>{p.name}</Text>
-              <Text style={styles.productTag}>{p.tagline}</Text>
-              <Text style={[styles.recStack, { color: p.color }]}>
-                REC: {p.recommendedStack}
+              <View style={styles.productHeader}>
+                <Text style={styles.productIcon}>{prod.icon}</Text>
+                <View style={styles.productRevenueBadge}>
+                  <Text style={styles.productRevenueText}>
+                    ${prod.revenuePerReq}/req
+                  </Text>
+                </View>
+              </View>
+              <Text style={styles.productName}>{prod.name}</Text>
+              <Text style={styles.productTagline}>{prod.tagline}</Text>
+              <Text style={styles.productStackNote}>
+                Stack: {prod.recommendedStack}
               </Text>
             </TouchableOpacity>
           );
         })}
       </View>
 
-      {/* 3. Tech Stack Architecture */}
-      <Text style={styles.sectionLabel}>3. CORE BACKEND ARCHITECTURE</Text>
+      {/* 3. Tech Stack Tailored to Chosen Product */}
+      <Text style={styles.sectionLabel}>
+        3. SELECT ARCHITECTURE STACK FOR{' '}
+        {PRODUCTS.find((p) => p.id === selectedProduct)?.name.toUpperCase()}
+      </Text>
       <View style={styles.stackColumn}>
-        {BACKEND_STACKS.map((b) => {
-          const active = selectedBackend === b.id;
+        {availableStacks.map((stack) => {
+          const isSelected = selectedStackId === stack.id;
           return (
             <TouchableOpacity
-              key={b.id}
-              style={[styles.stackCard, active && styles.stackCardActive]}
-              onPress={() => setSelectedBackend(b.id)}
+              key={stack.id}
+              style={[
+                styles.stackCard,
+                isSelected && styles.stackCardActive,
+              ]}
+              onPress={() => setSelectedStackId(stack.id)}
             >
-              <View style={styles.stackTop}>
-                <Text style={styles.stackName}>{b.name}</Text>
+              <View style={styles.stackHeader}>
+                <Text style={styles.stackName}>{stack.name}</Text>
                 <View style={styles.tagPill}>
-                  <Text style={styles.tagText}>{b.tag}</Text>
+                  <Text style={styles.tagText}>{stack.tag}</Text>
                 </View>
               </View>
-              <Text style={styles.stackDesc}>{b.desc}</Text>
+              <Text style={styles.stackDesc}>{stack.desc}</Text>
+              <View style={styles.bonusRow}>
+                <Text style={styles.bonusText}>
+                  +{stack.capacityBonus} RPS BASE CAPACITY
+                </Text>
+                <Text style={styles.bonusText}>
+                  +{(stack.efficiencyBonus * 100).toFixed(0)}% REVENUE BONUS
+                </Text>
+              </View>
             </TouchableOpacity>
           );
         })}
       </View>
 
-      <Text style={styles.sectionLabel}>4. PRIMARY PERSISTENCE DATABASE</Text>
-      <View style={styles.stackColumn}>
-        {DATABASE_STACKS.map((d) => {
-          const active = selectedDb === d.id;
-          return (
-            <TouchableOpacity
-              key={d.id}
-              style={[styles.stackCard, active && styles.stackCardActive]}
-              onPress={() => setSelectedDb(d.id)}
-            >
-              <View style={styles.stackTop}>
-                <Text style={styles.stackName}>{d.name}</Text>
-                <View style={styles.tagPill}>
-                  <Text style={styles.tagText}>{d.tag}</Text>
-                </View>
-              </View>
-              <Text style={styles.stackDesc}>{d.desc}</Text>
-            </TouchableOpacity>
-          );
-        })}
-      </View>
-
-      {/* Initialize Button */}
+      {/* Launch Button */}
       <TouchableOpacity
-        style={styles.startBtn}
-        onPress={() =>
-          onStart(selectedMode, selectedProduct, selectedBackend, selectedDb)
-        }
+        style={styles.startButton}
+        onPress={() => onStart(selectedMode, selectedProduct, selectedStackId)}
       >
-        <Text style={styles.startBtnText}>INITIALIZE DEV WORKSPACE →</Text>
+        <Text style={styles.startButtonText}>
+          INITIALIZE WORKSPACE & START CODING 🚀
+        </Text>
       </TouchableOpacity>
     </ScrollView>
   );
@@ -154,35 +165,36 @@ export const OnboardingModal: React.FC<Props> = ({ onStart }) => {
 const styles = StyleSheet.create({
   container: {
     padding: 16,
-    paddingBottom: 40,
+    paddingTop: 24,
     backgroundColor: '#070B14',
+    paddingBottom: 40,
   },
   badge: {
-    color: '#22D3EE',
+    color: '#38BDF8',
     fontSize: 10,
     fontWeight: '900',
     letterSpacing: 1.5,
-    marginBottom: 6,
+    marginBottom: 4,
   },
   title: {
     color: '#F8FAFC',
-    fontSize: 26,
+    fontSize: 22,
     fontWeight: '900',
-    marginBottom: 8,
+    marginBottom: 6,
   },
   subtitle: {
     color: '#94A3B8',
-    fontSize: 13,
-    lineHeight: 19,
+    fontSize: 12,
+    lineHeight: 18,
     marginBottom: 20,
   },
   sectionLabel: {
-    color: '#64748B',
+    color: '#38BDF8',
     fontSize: 11,
-    fontWeight: '900',
-    letterSpacing: 1.2,
-    marginTop: 10,
-    marginBottom: 10,
+    fontWeight: '800',
+    letterSpacing: 1,
+    marginTop: 12,
+    marginBottom: 8,
   },
   row: {
     flexDirection: 'row',
@@ -191,15 +203,15 @@ const styles = StyleSheet.create({
   },
   modeCard: {
     flex: 1,
-    backgroundColor: '#0F172A',
+    backgroundColor: '#0B1221',
+    borderRadius: 12,
     borderWidth: 1.5,
     borderColor: '#1E293B',
-    borderRadius: 12,
     padding: 12,
   },
   cardActive: {
-    borderColor: '#22D3EE',
-    backgroundColor: '#0A1C2E',
+    borderColor: '#38BDF8',
+    backgroundColor: '#0D1E3A',
   },
   modeIcon: {
     fontSize: 24,
@@ -208,8 +220,13 @@ const styles = StyleSheet.create({
   cardTitle: {
     color: '#F8FAFC',
     fontSize: 14,
-    fontWeight: '900',
-    marginBottom: 4,
+    fontWeight: '800',
+  },
+  cardRole: {
+    color: '#38BDF8',
+    fontSize: 9,
+    fontWeight: '800',
+    marginBottom: 6,
   },
   cardDesc: {
     color: '#94A3B8',
@@ -217,54 +234,68 @@ const styles = StyleSheet.create({
     lineHeight: 15,
   },
   productGrid: {
-    flexDirection: 'row',
-    flexWrap: 'wrap',
     gap: 10,
     marginBottom: 16,
   },
   productCard: {
-    width: '48.5%',
-    backgroundColor: '#0F172A',
+    backgroundColor: '#0B1221',
+    borderRadius: 12,
     borderWidth: 1.5,
     borderColor: '#1E293B',
-    borderRadius: 12,
     padding: 12,
+  },
+  productHeader: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    marginBottom: 4,
   },
   productIcon: {
     fontSize: 22,
-    marginBottom: 6,
+  },
+  productRevenueBadge: {
+    backgroundColor: 'rgba(16, 185, 129, 0.15)',
+    paddingHorizontal: 8,
+    paddingVertical: 3,
+    borderRadius: 4,
+  },
+  productRevenueText: {
+    color: '#10B981',
+    fontSize: 10,
+    fontWeight: '800',
   },
   productName: {
     color: '#F8FAFC',
     fontSize: 14,
-    fontWeight: '900',
-  },
-  productTag: {
-    color: '#94A3B8',
-    fontSize: 10,
-    marginTop: 2,
-  },
-  recStack: {
-    fontSize: 9,
     fontWeight: '800',
-    marginTop: 6,
+  },
+  productTagline: {
+    color: '#94A3B8',
+    fontSize: 11,
+    marginVertical: 2,
+  },
+  productStackNote: {
+    color: '#38BDF8',
+    fontSize: 10,
+    fontWeight: '700',
+    marginTop: 4,
   },
   stackColumn: {
-    gap: 8,
-    marginBottom: 16,
+    gap: 10,
+    marginBottom: 20,
   },
   stackCard: {
-    backgroundColor: '#0F172A',
-    borderRadius: 10,
+    backgroundColor: '#0B1221',
+    borderRadius: 12,
     borderWidth: 1.5,
     borderColor: '#1E293B',
     padding: 12,
   },
   stackCardActive: {
-    borderColor: '#22D3EE',
-    backgroundColor: '#0B1D2F',
+    borderColor: '#10B981',
+    backgroundColor: '#09211C',
   },
-  stackTop: {
+  stackHeader: {
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'center',
@@ -273,35 +304,45 @@ const styles = StyleSheet.create({
   stackName: {
     color: '#F8FAFC',
     fontSize: 13,
-    fontWeight: '900',
+    fontWeight: '800',
   },
   tagPill: {
-    backgroundColor: '#083344',
+    backgroundColor: '#1E293B',
     paddingHorizontal: 6,
     paddingVertical: 2,
     borderRadius: 4,
   },
   tagText: {
-    color: '#22D3EE',
-    fontSize: 8,
-    fontWeight: '900',
+    color: '#38BDF8',
+    fontSize: 9,
+    fontWeight: '800',
   },
   stackDesc: {
     color: '#94A3B8',
     fontSize: 11,
     lineHeight: 15,
+    marginBottom: 6,
   },
-  startBtn: {
+  bonusRow: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+  },
+  bonusText: {
+    color: '#10B981',
+    fontSize: 9,
+    fontWeight: '800',
+  },
+  startButton: {
     backgroundColor: '#10B981',
-    paddingVertical: 16,
     borderRadius: 12,
+    paddingVertical: 14,
     alignItems: 'center',
-    marginTop: 10,
+    marginTop: 8,
   },
-  startBtnText: {
-    color: '#042F2E',
-    fontSize: 14,
+  startButtonText: {
+    color: '#070B14',
+    fontSize: 13,
     fontWeight: '900',
-    letterSpacing: 1,
+    letterSpacing: 0.8,
   },
 });
