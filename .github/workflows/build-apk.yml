@@ -40,25 +40,26 @@ jobs:
       - name: 🛠️ Expo Prebuild Android
         run: npx expo prebuild --platform android --clean
 
-      - name: 🚀 Build Debug APK with Gradle (arm64-v8a)
+      - name: 🚀 Build Standalone Release APK with Embedded JS Bundle
         run: |
           cd android
           chmod +x gradlew
-          ./gradlew assembleDebug \
+          ./gradlew assembleRelease \
             -PreactNativeArchitectures=arm64-v8a \
+            -Pandroid.enableMinifyInReleaseBuilds=false \
             -Dorg.gradle.jvmargs="-Xmx4096m -XX:MaxMetaspaceSize=1024m" \
             --no-daemon \
             --stacktrace
 
       - name: 🏷️ Rename APK
         run: |
-          mv android/app/build/outputs/apk/debug/app-debug.apk android/app/build/outputs/apk/debug/StackForge-Tycoon-v1.0.apk
+          mv android/app/build/outputs/apk/release/app-release.apk android/app/build/outputs/apk/release/StackForge-Tycoon-v1.0.apk
 
       - name: 📤 Upload Artifact (Backup)
         uses: actions/upload-artifact@v4
         with:
           name: StackForge-Tycoon-v1.0-APK
-          path: android/app/build/outputs/apk/debug/StackForge-Tycoon-v1.0.apk
+          path: android/app/build/outputs/apk/release/StackForge-Tycoon-v1.0.apk
           if-no-files-found: error
           retention-days: 30
 
@@ -68,6 +69,6 @@ jobs:
         run: |
           git log -1 --pretty=%B > notes.txt
           gh release create "v1.0.${{ github.run_number }}" \
-            android/app/build/outputs/apk/debug/StackForge-Tycoon-v1.0.apk \
+            android/app/build/outputs/apk/release/StackForge-Tycoon-v1.0.apk \
             --title "StackForge Tycoon v1.0.${{ github.run_number }}" \
             --notes-file notes.txt || echo "Release creation skipped or already exists"
