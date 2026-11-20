@@ -1,16 +1,18 @@
-name: Build Android APK
+name: Build StackForge Tycoon APK
 
 on:
   push:
     branches: [ main, master ]
-  pull_request:
-    branches: [ main, master ]
   workflow_dispatch:
+
+permissions:
+  contents: write
 
 jobs:
   build:
     name: Build Android APK
     runs-on: ubuntu-latest
+    timeout-minutes: 30
 
     steps:
       - name: 📥 Checkout Repository
@@ -22,14 +24,15 @@ jobs:
           node-version: 22
           cache: 'npm'
 
-      - name: ☕ Setup Java 17 (Temurin)
+      - name: ☕ Setup Java 21 (Temurin)
         uses: actions/setup-java@v4
         with:
           distribution: 'temurin'
-          java-version: 17
+          java-version: '21'
 
-      - name: 📝 Accept Android SDK Licenses
-        run: yes | sdkmanager --licenses || true
+      - name: 📝 Accept Android SDK Licenses & Setup NDK
+        run: |
+          yes | sdkmanager --licenses || true
 
       - name: 📦 Install Dependencies
         run: npm install --legacy-peer-deps
@@ -37,20 +40,34 @@ jobs:
       - name: 🛠️ Expo Prebuild Android
         run: npx expo prebuild --platform android --clean
 
-      - name: 🚀 Build Debug APK with Gradle
+      - name: 🚀 Build Debug APK with Gradle (arm64-v8a)
         run: |
           cd android
           chmod +x gradlew
-          ./gradlew assembleDebug --no-daemon
+          ./gradlew assembleDebug \
+            -PreactNativeArchitectures=arm64-v8a \
+            -Dorg.gradle.jvmargs="-Xmx4096m -XX:MaxMetaspaceSize=1024m" \
+            --no-daemon \
+            --stacktrace
 
       - name: 🏷️ Rename APK
         run: |
           mv android/app/build/outputs/apk/debug/app-debug.apk android/app/build/outputs/apk/debug/StackForge-Tycoon-v1.0.apk
 
-      - name: 📤 Upload APK Artifact
+      - name: 📤 Upload Artifact (Backup)
         uses: actions/upload-artifact@v4
         with:
           name: StackForge-Tycoon-v1.0-APK
           path: android/app/build/outputs/apk/debug/StackForge-Tycoon-v1.0.apk
           if-no-files-found: error
           retention-days: 30
+
+      - name: 🚀 Publish GitHub Release
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          git log -1 --pretty=%B > notes.txt
+          gh release create "v1.0.${{ github.run_number }}" \
+            android/app/build/outputs/apk/debug/StackForge-Tycoon-v1.0.apk \
+            --title "StackForge Tycoon v1.0.${{ github.run_number }}" \
+            --notes-file notes.txt || echo "Release creation skipped or already exists"
